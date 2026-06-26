@@ -5,12 +5,19 @@ const LineChart = ({ data, symbol }) => {
     const svgRef = useRef();
 
     useEffect(() => {
-        if (!data || data.length === 0) return;
+        // 1. Filter and sanitize data to prevent NaN scale crashes
+        const cleanData = data.filter(d => 
+            d.date instanceof Date && 
+            !isNaN(d.date.getTime()) && 
+            typeof d.price === 'number' && 
+            !isNaN(d.price)
+        );
+        if (cleanData.length < 2) return;
 
-        // 1. Clear the canvas
+        // 2. Clear the canvas
         d3.select(svgRef.current).selectAll("*").remove();
 
-        // 2. Setup responsive dimensions
+        // 3. Setup responsive dimensions
         const width = 800;
         const height = 320;
         const margin = { top: 10, right: 20, bottom: 30, left: 55 };
@@ -25,13 +32,13 @@ const LineChart = ({ data, symbol }) => {
             .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        // 3. Create scales
+        // 4. Create scales
         const xScale = d3.scaleTime()
-            .domain(d3.extent(data, d => d.date))
+            .domain(d3.extent(cleanData, d => d.date))
             .range([0, innerWidth]);
 
-        const yMin = d3.min(data, d => d.price);
-        const yMax = d3.max(data, d => d.price);
+        const yMin = d3.min(cleanData, d => d.price);
+        const yMax = d3.max(cleanData, d => d.price);
         const yScale = d3.scaleLinear()
             .domain([yMin * 0.98, yMax * 1.02]) // 2% buffer for a cleaner look
             .range([innerHeight, 0]);
@@ -103,7 +110,7 @@ const LineChart = ({ data, symbol }) => {
             .curve(d3.curveMonotoneX);
 
         svg.append("path")
-            .datum(data)
+            .datum(cleanData)
             .attr("fill", "url(#chart-area-gradient)")
             .attr("d", areaGenerator);
 
@@ -114,7 +121,7 @@ const LineChart = ({ data, symbol }) => {
             .curve(d3.curveMonotoneX);
 
         svg.append("path")
-            .datum(data)
+            .datum(cleanData)
             .attr("fill", "none")
             .attr("stroke", "#4f46e5")
             .attr("stroke-width", 3.5)

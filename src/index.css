@@ -35,7 +35,7 @@ body {
 /* --- Layout Structure --- */
 .app-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: auto 1fr; /* sidebar width transitions smoothly */
   min-height: 100vh;
 }
 
@@ -46,16 +46,42 @@ body {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-light);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 280px;
+  overflow: hidden;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.sidebar.collapsed {
+  width: 80px;
+  padding: 30px 12px;
+}
+
+.sidebar-top {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .logo-container {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-dark);
   margin-bottom: 30px;
+  position: relative;
+  gap: 10px;
+  width: 100%;
+}
+
+.sidebar.collapsed .logo-container {
+  justify-content: center;
 }
 
 .logo-icon {
@@ -69,6 +95,35 @@ body {
   color: white;
   font-size: 0.9rem;
   font-weight: 800;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.sidebar-toggle-btn:hover {
+  background-color: var(--bg-app);
+  color: var(--text-dark);
+}
+
+.sidebar.collapsed .sidebar-toggle-btn {
+  position: absolute;
+  right: -6px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  z-index: 10;
 }
 
 /* Sidebar Portfolio Widget */
@@ -121,6 +176,23 @@ body {
   flex-direction: column;
   gap: 8px;
   flex: 1;
+  overflow-y: auto;
+  margin: 15px 0;
+  padding-right: 4px;
+}
+
+.sidebar-menu::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-menu::-webkit-scrollbar-thumb {
+  background-color: var(--border-light);
+  border-radius: 4px;
+}
+.sidebar-menu::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
 }
 
 .sidebar-menu-item {
@@ -148,13 +220,21 @@ body {
   font-weight: 600;
 }
 
+/* Sidebar Footer */
 .sidebar-footer {
   display: flex;
   flex-direction: column;
   gap: 8px;
   border-top: 1px solid var(--border-light);
   padding-top: 20px;
-  margin-top: 20px;
+  flex-shrink: 0;
+}
+
+/* Collapsed Sidebar Item Alignment */
+.sidebar.collapsed .sidebar-menu-item {
+  padding: 12px 0;
+  justify-content: center;
+  gap: 0;
 }
 
 /* --- Main Content --- */
@@ -671,4 +751,61 @@ body {
   .sidebar {
     display: none; /* Sidebar collapse can be built later */
   }
+}
+
+/* --- Interactive Trade Panel Styling --- */
+.segmented-control {
+  display: inline-flex;
+  background-color: var(--bg-app);
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-light);
+}
+
+.segmented-btn {
+  padding: 8px 20px;
+  border-radius: var(--radius-pill);
+  border: none;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.segmented-btn.active.buy {
+  background-color: var(--bg-dark);
+  color: var(--accent-lime);
+}
+
+.segmented-btn.active.sell {
+  background-color: #ff2a2a;
+  color: white;
+}
+
+.trade-details-box {
+  background-color: var(--bg-app);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid var(--border-light);
+}
+
+.trade-price-tag {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  display: block;
+}
+
+.trade-total-tag {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-dark);
+  display: block;
 }

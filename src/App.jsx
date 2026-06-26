@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import StockCard from './components/StockCard';
-import { getStockQuote, getHistoricalData } from './api/stockService';
+import { getStockQuote, getHistoricalData, getCompanyProfile } from './api/stockService';
 import LineChart from './components/LineChart';
 import Portfolio from './components/Portfolio';
 import { calculatePortfolioMetrics } from './utils/portfolioMath';
@@ -55,33 +55,58 @@ const MoonIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
 );
 
-const STOCK_NAMES = {
-  AAPL: 'Apple Inc.',
-  MSFT: 'Microsoft Co.',
-  TSLA: 'Tesla Inc.',
-  GOOGL: 'Alphabet Inc.',
-  AMZN: 'Amazon.com Inc.',
-  NFLX: 'Netflix Inc.',
-  NVDA: 'NVIDIA Corp.',
-  META: 'Meta Platforms',
-};
+const WealthSmithLogo = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: 'var(--accent-lime)' }}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+);
 
-const getStockName = (symbol) => {
-  return STOCK_NAMES[symbol.toUpperCase()] || '';
-};
+const UserAvatar = () => (
+  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--bg-dark)', color: 'var(--accent-lime)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>FB</div>
+);
+
+const ChevronLeftIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><polyline points="15 18 9 12 15 6"></polyline></svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+);
+
+// Dynamic stock profiles and quotes are fetched directly from Finnhub & Polygon APIs
+
+const STARTING_CASH = 100000;
 
 function App() {
   const [activeSymbol, setActiveSymbol] = useState('AAPL');
-  const [stockData, setStockData] = useState(null);
+  const [stockData1, setStockData1] = useState(null);
+  const [stockData2, setStockData2] = useState(null);
+  const [name1, setName1] = useState('');
+  const [name2, setName2] = useState('');
   const [loading, setLoading] = useState(true);
   const [historicalData, setHistoricalData] = useState([]);
   const [error, setError] = useState(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Lift holdings state up so the sidebar can reflect values dynamically
-  const [holdings, setHoldings] = useState([
-    { ticker: 'AAPL', shares: 10, buyPrice: 150.00 },
-    { ticker: 'MSFT', shares: 5, buyPrice: 280.00 }
-  ]);
+  // Persistent cash and holdings state with localStorage
+  const [cash, setCash] = useState(() => {
+    const saved = localStorage.getItem('wealth_smith_cash');
+    return saved !== null ? Number(saved) : 100000;
+  });
+  const [holdings, setHoldings] = useState(() => {
+    const saved = localStorage.getItem('wealth_smith_holdings');
+    return saved !== null ? JSON.parse(saved) : [];
+  });
+
+  // Track live prices map in state
+  const [livePrices, setLivePrices] = useState({});
+
+  // Sync cash & holdings to localStorage
+  useEffect(() => {
+    localStorage.setItem('wealth_smith_cash', cash.toString());
+  }, [cash]);
+
+  useEffect(() => {
+    localStorage.setItem('wealth_smith_holdings', JSON.stringify(holdings));
+  }, [holdings]);
 
   // Comparison form inputs
   const [inputSymbol1, setInputSymbol1] = useState('AAPL');
@@ -90,38 +115,130 @@ function App() {
   // Timeframe filter state
   const [activeTimeframe, setActiveTimeframe] = useState('6 Months');
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch quote and history for the active symbol
-        const [quote, history] = await Promise.all([
-          getStockQuote(activeSymbol),
-          getHistoricalData(activeSymbol)
-        ]);
+  const fetchComparisonData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [q1, q2, p1, p2] = await Promise.all([
+        getStockQuote(inputSymbol1),
+        getStockQuote(inputSymbol2),
+        getCompanyProfile(inputSymbol1),
+        getCompanyProfile(inputSymbol2)
+      ]);
 
-        setStockData(quote);
-        setHistoricalData(history);
-        setLoading(false);
-      } catch (err) {
+      setStockData1(q1);
+      setStockData2(q2);
+      setName1(p1 ? p1.name : q1?.symbol || inputSymbol1.toUpperCase());
+      setName2(p2 ? p2.name : q2?.symbol || inputSymbol2.toUpperCase());
+
+      // Update livePrices cache
+      setLivePrices(prev => {
+        const next = { ...prev };
+        if (q1) next[q1.symbol] = q1.currentPrice;
+        if (q2) next[q2.symbol] = q2.currentPrice;
+        return next;
+      });
+      setLoading(false);
+    } catch (err) {
+      if (err.response && err.response.status === 429) {
+        setError("Rate limit reached (5 requests/min on free plan). Please wait a moment.");
+      } else {
         setError(err.message);
-        setLoading(false);
+      }
+      setLoading(false);
+    }
+  };
+
+  // Run on mount to fetch defaults (AAPL vs MSFT)
+  useEffect(() => {
+    fetchComparisonData();
+  }, []);
+
+  // Fetch chart data when activeSymbol or activeTimeframe changes
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        setError(null);
+        const history = await getHistoricalData(activeSymbol, activeTimeframe);
+        setHistoricalData(history);
+      } catch (err) {
+        if (err.response && err.response.status === 429) {
+          setError("Rate limit reached for historical D3 chart data. Please wait a minute.");
+        } else {
+          setError(err.message);
+        }
       }
     };
 
-    fetchDashboardData();
-  }, [activeSymbol]);
+    fetchChartData();
+  }, [activeSymbol, activeTimeframe]);
 
-  // Compute livePrices for math calculations
-  const livePrices = stockData ? { [stockData.symbol]: stockData.currentPrice } : {};
-  const metrics = calculatePortfolioMetrics(holdings, livePrices);
-  const isTrendUp = metrics.netProfitPercent >= 0;
+  // Resolve whichever stock quote is currently selected/active
+  const activeStockQuote = (stockData2 && activeSymbol === stockData2.symbol) ? stockData2 : stockData1;
+
+  // Merge price dynamically into livePrices if available
+  const activePriceMap = activeStockQuote ? { ...livePrices, [activeStockQuote.symbol]: activeStockQuote.currentPrice } : livePrices;
+
+  const metrics = calculatePortfolioMetrics(holdings, activePriceMap);
+  const netWorth = cash + metrics.currentValue;
+  const netWorthProfitPercent = Number(((netWorth - STARTING_CASH) / STARTING_CASH * 100).toFixed(2));
+  const isNetWorthUp = netWorthProfitPercent >= 0;
+  const isTrendUp = activeStockQuote ? activeStockQuote.change >= 0 : true;
+
+  // Handle stock trading: buy and sell
+  const handleExecuteTrade = (action, ticker, shares, price) => {
+    const symbol = ticker.toUpperCase();
+    const qty = Number(shares);
+    const cost = qty * price;
+
+    if (action === 'BUY') {
+      if (cost > cash) {
+        alert(`Insufficient cash balance! Purchase cost ($${cost.toLocaleString()}) exceeds remaining cash ($${cash.toLocaleString()}).`);
+        return false;
+      }
+      
+      setCash(prev => prev - cost);
+      setHoldings(prevHoldings => {
+        const existing = prevHoldings.find(h => h.ticker === symbol);
+        if (existing) {
+          const totalShares = existing.shares + qty;
+          const avgPrice = ((existing.shares * existing.buyPrice) + (qty * price)) / totalShares;
+          return prevHoldings.map(h => 
+            h.ticker === symbol 
+              ? { ...h, shares: totalShares, buyPrice: Number(avgPrice.toFixed(2)) }
+              : h
+          );
+        } else {
+          return [...prevHoldings, { ticker: symbol, shares: qty, buyPrice: price }];
+        }
+      });
+      return true;
+    } else if (action === 'SELL') {
+      const existing = holdings.find(h => h.ticker === symbol);
+      if (!existing || existing.shares < qty) {
+        alert(`You do not own enough shares of ${symbol} to sell! Owned: ${existing ? existing.shares : 0}, trying to sell: ${qty}.`);
+        return false;
+      }
+
+      setCash(prev => prev + cost);
+      setHoldings(prevHoldings => {
+        return prevHoldings.map(h => {
+          if (h.ticker === symbol) {
+            return { ...h, shares: h.shares - qty };
+          }
+          return h;
+        }).filter(h => h.shares > 0);
+      });
+      return true;
+    }
+    return false;
+  };
 
   // Handle stock comparison
   const handleCompare = (e) => {
     e.preventDefault();
+    fetchComparisonData();
     if (inputSymbol1) {
       setActiveSymbol(inputSymbol1.toUpperCase());
     }
@@ -135,69 +252,113 @@ function App() {
   });
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${isCollapsed ? 'collapsed' : ''}`}>
       {/* --- SIDEBAR --- */}
-      <aside className="sidebar">
-        <div className="logo-container">
-          <div className="logo-icon">i</div>
-          <span>Investo</span>
-        </div>
-
-        {/* Sidebar Portfolio Widget */}
-        <div className="sidebar-portfolio-card">
-          <div className="sidebar-portfolio-header">
-            <span>Your Portfolio</span>
-            <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{currentDateStr}</span>
+      <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+        {/* Fixed Top Segment */}
+        <div className="sidebar-top">
+          <div className="logo-container">
+            <div className="logo-icon" style={{ backgroundColor: 'transparent' }}><WealthSmithLogo /></div>
+            {!isCollapsed && <span>Wealth Smith</span>}
+            <button 
+              onClick={() => setIsCollapsed(!isCollapsed)} 
+              className="sidebar-toggle-btn"
+              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+            </button>
           </div>
-          <div className="sidebar-portfolio-body">
-            <div className="sidebar-portfolio-label">Current Value</div>
-            <div className="sidebar-portfolio-value">${metrics.currentValue.toLocaleString()}</div>
-            <div className="sidebar-portfolio-trend">
-              {isTrendUp ? '▲' : '▼'} {Math.abs(metrics.netProfitPercent)}%
+
+          {/* Sidebar Portfolio Widget - Hidden when collapsed */}
+          {!isCollapsed && (
+            <div className="sidebar-portfolio-card">
+              <div className="sidebar-portfolio-header">
+                <span>Your Net Assets</span>
+                <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{currentDateStr}</span>
+              </div>
+              <div className="sidebar-portfolio-body">
+                <div className="sidebar-portfolio-label">Total Value</div>
+                <div className="sidebar-portfolio-value">${netWorth.toLocaleString()}</div>
+                <div className="sidebar-portfolio-trend">
+                  {isNetWorthUp ? '▲' : '▼'} {Math.abs(netWorthProfitPercent)}%
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Sidebar Menu */}
+        {/* Scrollable Middle Segment */}
         <nav className="sidebar-menu">
           <a className="sidebar-menu-item active">
-            <span className="flex-align-center" style={{ gap: '10px' }}><SummaryIcon /> Stock Summary</span>
-          </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}><MarketsIcon /> Stock Markets</span>
-          </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}><TickersIcon /> Tickers</span>
-          </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}><CompareIcon /> Stock Comparison</span>
-          </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}><ScannersIcon /> Scanners</span>
-          </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}><PortfolioIcon /> Portfolio</span>
-          </a>
-        </nav>
-
-        {/* Sidebar Footer */}
-        <div className="sidebar-footer">
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ width: '100%', justifyContent: 'space-between' }}>
-              <span className="flex-align-center" style={{ gap: '10px' }}><InboxIcon /> Inbox</span>
-              <span style={{ background: '#c4ff00', color: '#121212', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 'bold' }}>6</span>
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <SummaryIcon /> 
+              {!isCollapsed && <span>Stock Summary</span>}
             </span>
           </a>
           <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}><SettingsIcon /> Settings</span>
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <MarketsIcon /> 
+              {!isCollapsed && <span>Stock Markets</span>}
+            </span>
           </a>
           <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}><HelpIcon /> Help</span>
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <TickersIcon /> 
+              {!isCollapsed && <span>Tickers</span>}
+            </span>
+          </a>
+          <a className="sidebar-menu-item">
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <CompareIcon /> 
+              {!isCollapsed && <span>Stock Comparison</span>}
+            </span>
+          </a>
+          <a className="sidebar-menu-item">
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <ScannersIcon /> 
+              {!isCollapsed && <span>Scanners</span>}
+            </span>
+          </a>
+          <a className="sidebar-menu-item">
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <PortfolioIcon /> 
+              {!isCollapsed && <span>Portfolio</span>}
+            </span>
+          </a>
+        </nav>
+
+        {/* Fixed Bottom Segment */}
+        <div className="sidebar-footer">
+          <a className="sidebar-menu-item">
+            <span className="flex-align-center" style={{ width: '100%', justifyContent: isCollapsed ? 'center' : 'space-between' }}>
+              <span className="flex-align-center" style={{ gap: '10px' }}>
+                <InboxIcon /> 
+                {!isCollapsed && <span>Inbox</span>}
+              </span>
+              {!isCollapsed && (
+                <span style={{ background: '#c4ff00', color: '#121212', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 'bold' }}>6</span>
+              )}
+            </span>
+          </a>
+          <a className="sidebar-menu-item">
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <SettingsIcon /> 
+              {!isCollapsed && <span>Settings</span>}
+            </span>
+          </a>
+          <a className="sidebar-menu-item">
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <HelpIcon /> 
+              {!isCollapsed && <span>Help</span>}
+            </span>
           </a>
           <div className="sidebar-menu-item" style={{ cursor: 'default' }}>
-            <span className="flex-align-center" style={{ width: '100%', justifyContent: 'space-between' }}>
-              <span className="flex-align-center" style={{ gap: '10px' }}><MoonIcon /> Dark Mode</span>
-              <input type="checkbox" style={{ cursor: 'pointer' }} />
+            <span className="flex-align-center" style={{ width: '100%', justifyContent: isCollapsed ? 'center' : 'space-between' }}>
+              <span className="flex-align-center" style={{ gap: '10px' }}>
+                <MoonIcon /> 
+                {!isCollapsed && <span>Dark Mode</span>}
+              </span>
+              {!isCollapsed && <input type="checkbox" style={{ cursor: 'pointer' }} />}
             </span>
           </div>
         </div>
@@ -215,12 +376,8 @@ function App() {
           <div className="header-actions">
             <button className="notification-btn"><BellIcon /></button>
             <div className="profile-widget">
-              <img 
-                className="profile-avatar" 
-                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80" 
-                alt="Profile Avatar" 
-              />
-              <span className="profile-name">Jonathan Bautista</span>
+              <UserAvatar />
+              <span className="profile-name" style={{ marginLeft: '8px' }}>FinBro</span>
             </div>
           </div>
         </header>
@@ -238,8 +395,8 @@ function App() {
                 onChange={(e) => setInputSymbol1(e.target.value)} 
                 required 
               />
-              {getStockName(inputSymbol1) && (
-                <span className="resolved-stock-name">{getStockName(inputSymbol1)}</span>
+              {name1 && (
+                <span className="resolved-stock-name">{name1}</span>
               )}
               <span className="input-icon-right"><SearchIcon /></span>
             </div>
@@ -252,8 +409,8 @@ function App() {
                 onChange={(e) => setInputSymbol2(e.target.value)} 
                 required 
               />
-              {getStockName(inputSymbol2) && (
-                <span className="resolved-stock-name">{getStockName(inputSymbol2)}</span>
+              {name2 && (
+                <span className="resolved-stock-name">{name2}</span>
               )}
               <span className="input-icon-right"><SearchIcon /></span>
             </div>
@@ -268,29 +425,24 @@ function App() {
         {loading && <p style={{ color: 'var(--text-muted)' }}>Fetching live market data...</p>}
         {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
 
-        {/* Stock Overview Cards Grid */}
+        {/* Stock Overview Cards Grid - Dynamic comparison side-by-side */}
         <div className="overview-grid">
-          {stockData && <StockCard data={stockData} />}
-          {/* Static placeholder card to mimic side-by-side style in screenshot */}
-          <div className="neo-card">
-            <div className="stock-card-header">
-              <div className="stock-card-icon" style={{ backgroundColor: '#e2f0d9' }}>M</div>
-              <div className="stock-card-names">
-                <span className="stock-ticker">MSFT</span>
-                <span className="stock-name">Microsoft Corp.</span>
-              </div>
-            </div>
-            <div className="stock-card-metrics">
-              <div className="stock-metric-col">
-                <span className="stock-metric-label">Revenue</span>
-                <span className="stock-metric-val text-green">$394.33B ▲</span>
-              </div>
-              <div className="stock-metric-col">
-                <span className="stock-metric-label">Market Cap</span>
-                <span className="stock-metric-val">$1780.09B</span>
-              </div>
-            </div>
-          </div>
+          {stockData1 && (
+            <StockCard 
+              data={stockData1} 
+              companyName={name1}
+              onClick={() => setActiveSymbol(stockData1.symbol)} 
+              isActive={activeSymbol === stockData1.symbol}
+            />
+          )}
+          {stockData2 && (
+            <StockCard 
+              data={stockData2} 
+              companyName={name2}
+              onClick={() => setActiveSymbol(stockData2.symbol)} 
+              isActive={activeSymbol === stockData2.symbol}
+            />
+          )}
         </div>
 
         {/* Price Comparison / Line Chart section */}
@@ -298,11 +450,11 @@ function App() {
           <div className="chart-card-header">
             <div className="chart-info">
               <span style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>Price Comparison</span>
-              {stockData && (
+              {activeStockQuote && (
                 <>
-                  <span className="chart-price" style={{ marginLeft: '10px' }}>${stockData.currentPrice.toFixed(2)}</span>
+                  <span className="chart-price" style={{ marginLeft: '10px' }}>${activeStockQuote.currentPrice.toFixed(2)}</span>
                   <span className={`chart-change ${isTrendUp ? 'up' : 'down'}`} style={{ marginLeft: '10px' }}>
-                    {isTrendUp ? '+' : ''}{stockData.changePercent}%
+                    {isTrendUp ? '+' : ''}{activeStockQuote.changePercent}%
                   </span>
                 </>
               )}
@@ -310,7 +462,7 @@ function App() {
 
             {/* Timeframe Filter Tabs */}
             <div className="time-tabs">
-              {['1 Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', '5 Years', 'All Time'].map((tab) => (
+              {['1 Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', '2 Years'].map((tab) => (
                 <button 
                   key={tab} 
                   className={`time-tab-btn ${activeTimeframe === tab ? 'active' : ''}`}
@@ -324,7 +476,7 @@ function App() {
 
           {/* D3 Area Line Chart */}
           {historicalData.length > 0 && (
-            <LineChart data={historicalData} symbol={stockData?.symbol || activeSymbol} />
+            <LineChart data={historicalData} symbol={activeSymbol} />
           )}
         </section>
 
@@ -332,7 +484,13 @@ function App() {
         <Portfolio 
           holdings={holdings} 
           setHoldings={setHoldings} 
-          livePrices={livePrices} 
+          livePrices={activePriceMap} 
+          cash={cash}
+          setCash={setCash}
+          onExecuteTrade={handleExecuteTrade}
+          startingCash={STARTING_CASH}
+          activeSymbol={activeSymbol}
+          setActiveSymbol={setActiveSymbol}
         />
       </main>
     </div>

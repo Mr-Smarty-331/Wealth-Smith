@@ -1,6 +1,6 @@
 import React from 'react';
 
-const StockCard = ({ data }) => {
+const StockCard = ({ data, onClick, isActive, companyName }) => {
     if (!data) return null;
 
     const isPositive = data.change >= 0;
@@ -8,15 +8,26 @@ const StockCard = ({ data }) => {
     // Get first letter of ticker to show as icon placeholder
     const firstLetter = data.symbol ? data.symbol.charAt(0) : '';
 
+    // Resolve display company name
+    const displayName = companyName || data.companyName || 'Live Market Data';
+
     return (
-        <div className="neo-card">
+        <div 
+            className={`neo-card ${isActive ? 'active' : ''}`}
+            onClick={onClick}
+            style={{ 
+                cursor: onClick ? 'pointer' : 'default', 
+                border: isActive ? '2px solid var(--accent-lime)' : '2px solid transparent',
+                transition: 'all 0.2s ease'
+            }}
+        >
             <div className="stock-card-header">
                 <div className="stock-card-icon" style={{ backgroundColor: '#e2f0d9' }}>
                     {firstLetter}
                 </div>
                 <div className="stock-card-names">
                     <span className="stock-ticker">{data.symbol}</span>
-                    <span className="stock-name">Live Market Data</span>
+                    <span className="stock-name">{displayName}</span>
                 </div>
             </div>
 
