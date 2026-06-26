@@ -4,10 +4,9 @@
  * @param {string} symbol - The stock ticker symbol (e.g., 'AAPL')
  * @returns {Object} Cleaned, standardized stock data
  */
-
 export const normalizeStockQuote = (rawData, symbol) => {
     if (!rawData || rawData.c === 0) {
-        throw new Error(`Invalid or missing stock data for ${symbol}`)
+        throw new Error(`Invalid or missing stock data for ${symbol}`);
     }
 
     const priceChange = rawData.c - rawData.pc;
@@ -24,4 +23,20 @@ export const normalizeStockQuote = (rawData, symbol) => {
         changePercent: Number(percentChange.toFixed(2)),
         timestamp: rawData.t * 1000
     };
-}
+};
+
+/**
+ * Normalizes raw historical daily stock data from Polygon.io.
+ * @param {Object} rawData - The raw JSON from the Polygon.io response
+ * @returns {Array<Object>} List of daily price points
+ */
+export const normalizeHistoricalData = (rawData) => {
+    if (!rawData || !rawData.results) {
+        return [];
+    }
+
+    return rawData.results.map((item) => ({
+        date: new Date(item.t), // t is timestamp in milliseconds
+        price: item.c          // c is the close price
+    }));
+};

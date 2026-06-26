@@ -1,17 +1,27 @@
 import { useState, useEffect } from 'react';
-import { getStockQuote } from './api/stockService';
+import StockCard from './components/StockCard';
+import { getStockQuote, getHistoricalData } from './api/stockService';
+import LineChart from './components/LineChart';
 import './index.css';
 
 function App() {
   const [stockData, setStockData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [historicalData, setHistoricalData] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchTestQuote = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const data = await getStockQuote('AAPL');
-        setStockData(data);
+        const symbol = 'AAPL';
+        // We can fetch both at the same time using Promise.all to make it faster!
+        const [quote, history] = await Promise.all([
+          getStockQuote(symbol),
+          getHistoricalData(symbol)
+        ]);
+
+        setStockData(quote);
+        setHistoricalData(history);
         setLoading(false);
       } catch (err) {
         setError(err.message);
@@ -19,7 +29,7 @@ function App() {
       }
     };
 
-    fetchTestQuote();
+    fetchDashboardData();
   }, []);
 
   return (
@@ -32,22 +42,11 @@ function App() {
         {loading && <p>Fetching live market data...</p>}
         {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
 
-        {stockData && (
-          <div>
-            <h3>Asset: {stockData.symbol}</h3>
-            <p><strong>Current Price:</strong> ${stockData.currentPrice}</p>
-            <p><strong>Open Price:</strong> ${stockData.openPrice}</p>
-            <p><strong>Daily High:</strong> ${stockData.highPrice}</p>
-            <p><strong>Daily Low:</strong> ${stockData.lowPrice}</p>
-            <p>
-              <strong>Daily Change:</strong>{' '}
-              <span style={{ color: stockData.change >= 0 ? 'green' : 'red' }}>
-                {stockData.change} ({stockData.changePercent}%)
-              </span>
-            </p>
-            <p><small>Last Updated: {new Date(stockData.timestamp).toLocaleTimeString()}</small></p>
-          </div>
-        )}
+        <div className="dashboard-grid">
+          {stockData && <StockCard data={stockData} />}
+          {/* Render our D3 chart if we have data */}
+          {historicalData.length > 0 && <LineChart data={historicalData} symbol={stockData?.symbol} />}
+        </div>
       </div>
     </div>
   );
