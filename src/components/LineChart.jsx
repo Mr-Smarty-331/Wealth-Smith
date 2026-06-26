@@ -2,68 +2,129 @@ import React, { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 
 const LineChart = ({ data, symbol }) => {
-    // This ref connects our React code to the actual HTML <svg> element
     const svgRef = useRef();
 
     useEffect(() => {
-        // Don't draw anything if we don't have data yet
         if (!data || data.length === 0) return;
 
-        // 1. CLEAR THE CANVAS: so it doesn't draw multiple charts on top of each other
+        // 1. Clear the canvas
         d3.select(svgRef.current).selectAll("*").remove();
 
-        // 2. SETUP DIMENSIONS
-        const width = 600;
-        const height = 300;
-        const margin = { top: 20, right: 30, bottom: 30, left: 50 };
+        // 2. Setup responsive dimensions
+        const width = 800;
+        const height = 320;
+        const margin = { top: 10, right: 20, bottom: 30, left: 55 };
         const innerWidth = width - margin.left - margin.right;
         const innerHeight = height - margin.top - margin.bottom;
 
-        // Connect D3 to our SVG element
+        // Connect D3 to SVG element
         const svg = d3.select(svgRef.current)
-            .attr("viewBox", `0 0 ${width} ${height}`) // Makes the chart responsive!
+            .attr("viewBox", `0 0 ${width} ${height}`)
             .style("width", "100%")
             .style("height", "auto")
             .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        // 3. CREATE SCALES (Translates our prices/dates into pixel coordinates)
+        // 3. Create scales
         const xScale = d3.scaleTime()
-            .domain(d3.extent(data, d => d.date)) // From oldest to newest date
+            .domain(d3.extent(data, d => d.date))
             .range([0, innerWidth]);
 
+        const yMin = d3.min(data, d => d.price);
+        const yMax = d3.max(data, d => d.price);
         const yScale = d3.scaleLinear()
-            .domain([d3.min(data, d => d.price) * 0.95, d3.max(data, d => d.price) * 1.05]) // Add a 5% buffer top/bottom
-            .range([innerHeight, 0]); // SVG y-axis is inverted (0 is at the top)
+            .domain([yMin * 0.98, yMax * 1.02]) // 2% buffer for a cleaner look
+            .range([innerHeight, 0]);
 
-        // 4. DRAW AXES
+        // 4. Draw horizontal dashed grid lines
+        const yGrid = d3.axisLeft(yScale)
+            .ticks(5)
+            .tickSize(-innerWidth)
+            .tickFormat("");
+
+        svg.append("g")
+            .attr("class", "chart-grid")
+            .call(yGrid)
+            .attr("color", "#f1f3f5")
+            .style("stroke-dasharray", "4,4")
+            .call(g => g.select(".domain").remove());
+
+        // 5. Draw axes (without the outer border line, just labels)
+        const xAxis = d3.axisBottom(xScale)
+            .ticks(6)
+            .tickSize(0)
+            .tickPadding(12);
+
+        const yAxis = d3.axisLeft(yScale)
+            .ticks(5)
+            .tickFormat(d => `$${d}`)
+            .tickSize(0)
+            .tickPadding(12);
+
         svg.append("g")
             .attr("transform", `translate(0,${innerHeight})`)
-            .call(d3.axisBottom(xScale).ticks(6))
-            .attr("color", "#8792a2"); // Style the axis color
+            .call(xAxis)
+            .attr("color", "#8792a2")
+            .style("font-size", "0.85rem")
+            .style("font-family", "Outfit, sans-serif")
+            .call(g => g.select(".domain").remove());
 
         svg.append("g")
-            .call(d3.axisLeft(yScale).tickFormat(d => `$${d}`))
-            .attr("color", "#8792a2");
+            .call(yAxis)
+            .attr("color", "#8792a2")
+            .style("font-size", "0.85rem")
+            .style("font-family", "Outfit, sans-serif")
+            .call(g => g.select(".domain").remove());
 
-        // 5. DRAW THE LINE
+        // 6. Define soft gradient for area under the line
+        const defs = svg.append("defs");
+        const gradient = defs.append("linearGradient")
+            .attr("id", "chart-area-gradient")
+            .attr("x1", "0%")
+            .attr("y1", "0%")
+            .attr("x2", "0%")
+            .attr("y2", "100%");
+
+        gradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#4f46e5")
+            .attr("stop-opacity", 0.15);
+
+        gradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#4f46e5")
+            .attr("stop-opacity", 0.0);
+
+        // 7. Area generator (filled region)
+        const areaGenerator = d3.area()
+            .x(d => xScale(d.date))
+            .y0(innerHeight)
+            .y1(d => yScale(d.price))
+            .curve(d3.curveMonotoneX);
+
+        svg.append("path")
+            .datum(data)
+            .attr("fill", "url(#chart-area-gradient)")
+            .attr("d", areaGenerator);
+
+        // 8. Line generator (stroke line)
         const lineGenerator = d3.line()
             .x(d => xScale(d.date))
             .y(d => yScale(d.price))
-            .curve(d3.curveMonotoneX); // Makes the line slightly smooth
+            .curve(d3.curveMonotoneX);
 
         svg.append("path")
             .datum(data)
             .attr("fill", "none")
-            .attr("stroke", "#4f46e5") // A nice indigo color
-            .attr("stroke-width", 3)
+            .attr("stroke", "#4f46e5")
+            .attr("stroke-width", 3.5)
+            .attr("stroke-linecap", "round")
             .attr("d", lineGenerator);
 
-    }, [data]); // This array tells React to redraw the chart ONLY when 'data' changes
+    }, [data]);
 
     return (
-        <div className="card" style={{ gridColumn: '1 / -1' }}> {/* Spans the full width of the grid */}
-            <h3 style={{ marginBottom: '15px', color: '#1a1f36' }}>{symbol} 30-Day History</h3>
+        <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
             <svg ref={svgRef}></svg>
         </div>
     );
