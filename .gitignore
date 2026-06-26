@@ -42,3 +42,6 @@ __pycache__/
 *.pkl
 *.h5
 *.onnx
+
+# ML Dynamic Output models
+backend/ws-backend/ml_core/models/

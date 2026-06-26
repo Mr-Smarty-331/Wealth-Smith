@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import StockCard from './components/StockCard';
 import { getStockQuote, getHistoricalData, getCompanyProfile } from './api/stockService';
 import LineChart from './components/LineChart';
 import Portfolio from './components/Portfolio';
 import { calculatePortfolioMetrics } from './utils/portfolioMath';
+import useWebSocket from './api/useWebSocket';
 import './index.css';
 
 // Clean SVG Icon Components to replace emojis
@@ -107,6 +108,54 @@ function App() {
   useEffect(() => {
     localStorage.setItem('wealth_smith_holdings', JSON.stringify(holdings));
   }, [holdings]);
+
+  // Handle incoming live tick updates and prediction results from local server WebSocket
+  const handleWebSocketMessage = useCallback((data) => {
+    if (data.type === 'live_update') {
+      const { ticker, price, predicted_price, accuracy_metrics } = data;
+      
+      // Update livePrices cache
+      setLivePrices(prev => ({
+        ...prev,
+        [ticker]: price
+      }));
+      
+      // Sync values back to comparison cards state
+      setStockData1(prev => {
+        if (prev && prev.symbol === ticker) {
+          const change = price - prev.previousClose;
+          const changePercent = (change / prev.previousClose) * 100;
+          return {
+            ...prev,
+            currentPrice: price,
+            change,
+            changePercent,
+            predictedPrice: predicted_price,
+            accuracyMetrics: accuracy_metrics
+          };
+        }
+        return prev;
+      });
+
+      setStockData2(prev => {
+        if (prev && prev.symbol === ticker) {
+          const change = price - prev.previousClose;
+          const changePercent = (change / prev.previousClose) * 100;
+          return {
+            ...prev,
+            currentPrice: price,
+            change,
+            changePercent,
+            predictedPrice: predicted_price,
+            accuracyMetrics: accuracy_metrics
+          };
+        }
+        return prev;
+      });
+    }
+  }, []);
+
+  const { status: wsStatus, trainingMessage } = useWebSocket(activeSymbol, handleWebSocketMessage);
 
   // Comparison form inputs
   const [inputSymbol1, setInputSymbol1] = useState('AAPL');
@@ -424,6 +473,11 @@ function App() {
         {/* Status / Error display */}
         {loading && <p style={{ color: 'var(--text-muted)' }}>Fetching live market data...</p>}
         {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
+        {wsStatus === 'training' && (
+          <div style={{ padding: '16px 24px', borderRadius: '24px', backgroundColor: '#fffbeb', border: '2px solid #fef3c7', color: '#b45309', fontWeight: 'bold', marginBottom: '24px' }}>
+            ⚡ {trainingMessage || `Training AI predictor model for ${activeSymbol} in the background. Please wait ~10 seconds...`}
+          </div>
+        )}
 
         {/* Stock Overview Cards Grid - Dynamic comparison side-by-side */}
         <div className="overview-grid">

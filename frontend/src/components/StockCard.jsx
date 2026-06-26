@@ -63,6 +63,24 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
                     <span className="stock-metric-val">${data.lowPrice.toFixed(2)}</span>
                 </div>
             </div>
+
+            {data.predictedPrice && (
+                <div className="stock-card-prediction" style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '16px', backgroundColor: '#f9fafb', border: '1px dashed var(--accent-lime)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px', letterSpacing: '0.05em' }}>
+                        AI Predicted Next Close
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                        <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-dark)' }}>
+                            ${data.predictedPrice.toFixed(2)}
+                        </span>
+                        {data.accuracyMetrics && (
+                            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)' }}>
+                                Error Margin: ±{data.accuracyMetrics.mape_pct.toFixed(2)}%
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
