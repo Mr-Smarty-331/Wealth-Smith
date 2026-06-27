@@ -64,20 +64,32 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
                 </div>
             </div>
 
-            {data.predictedPrice && (
-                <div className="stock-card-prediction" style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '16px', backgroundColor: '#f9fafb', border: '1px dashed var(--accent-lime)' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px', letterSpacing: '0.05em' }}>
-                        AI Predicted Next Close
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-dark)' }}>
-                            ${data.predictedPrice.toFixed(2)}
+            {(data.signal || data.prediction) && (
+                <div className="stock-card-prediction" style={{ marginTop: '14px', padding: '12px 16px', borderRadius: '18px', backgroundColor: data.signal === 'BUY' || data.prediction === 'UP' ? 'rgba(196, 255, 0, 0.15)' : 'rgba(255, 42, 42, 0.1)', border: data.signal === 'BUY' || data.prediction === 'UP' ? '1.5px solid var(--accent-lime)' : '1.5px solid #ff2a2a' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+                            AI Forecast Signal
                         </span>
-                        {data.accuracyMetrics && (
-                            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)' }}>
-                                Error Margin: ±{data.accuracyMetrics.mape_pct.toFixed(2)}%
+                        {data.accuracyMetrics?.accuracy_pct && (
+                            <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)' }}>
+                                Accuracy: {data.accuracyMetrics.accuracy_pct}%
                             </span>
                         )}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ 
+                            fontSize: '1.2rem', 
+                            fontWeight: '800', 
+                            color: data.signal === 'BUY' || data.prediction === 'UP' ? '#121212' : '#ff2a2a',
+                            backgroundColor: data.signal === 'BUY' || data.prediction === 'UP' ? 'var(--accent-lime)' : '#fee2e2',
+                            padding: '4px 12px',
+                            borderRadius: '12px'
+                        }}>
+                            {data.signal === 'BUY' || data.prediction === 'UP' ? '▲ BUY (UP)' : '▼ SELL (DOWN)'}
+                        </span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-dark)' }}>
+                            {data.confidence ? `${data.confidence}% Conf.` : data.confidence_up ? `${data.confidence_up}% Conf.` : ''}
+                        </span>
                     </div>
                 </div>
             )}

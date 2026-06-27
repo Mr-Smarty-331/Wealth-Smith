@@ -117,7 +117,7 @@ function App() {
   // Handle incoming live tick updates and prediction results from local server WebSocket
   const handleWebSocketMessage = useCallback((data) => {
     if (data.type === 'live_update') {
-      const { ticker, price, predicted_price, accuracy_metrics } = data;
+      const { ticker, price, prediction, signal, confidence_up, confidence, accuracy_metrics } = data;
       
       // Update livePrices cache
       setLivePrices(prev => ({
@@ -125,11 +125,14 @@ function App() {
         [ticker]: price
       }));
 
-      // Update predictions cache
+      // Update predictions cache with classification details
       setPredictions(prev => ({
         ...prev,
         [ticker]: {
-          predictedPrice: predicted_price,
+          prediction,
+          signal,
+          confidence_up,
+          confidence,
           accuracyMetrics: accuracy_metrics
         }
       }));
@@ -144,7 +147,10 @@ function App() {
             currentPrice: price,
             change,
             changePercent,
-            predictedPrice: predicted_price,
+            prediction,
+            signal,
+            confidence_up,
+            confidence,
             accuracyMetrics: accuracy_metrics
           };
         }
@@ -160,7 +166,10 @@ function App() {
             currentPrice: price,
             change,
             changePercent,
-            predictedPrice: predicted_price,
+            prediction,
+            signal,
+            confidence_up,
+            confidence,
             accuracyMetrics: accuracy_metrics
           };
         }
@@ -281,7 +290,10 @@ function App() {
       currentPrice,
       change,
       changePercent,
-      predictedPrice: pred?.predictedPrice || stockData.predictedPrice,
+      prediction: pred?.prediction || stockData.prediction,
+      signal: pred?.signal || stockData.signal,
+      confidence_up: pred?.confidence_up || stockData.confidence_up,
+      confidence: pred?.confidence || stockData.confidence,
       accuracyMetrics: pred?.accuracyMetrics || stockData.accuracyMetrics
     };
   };
