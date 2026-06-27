@@ -84,9 +84,10 @@ const LineChart = ({ data, symbol }) => {
             .call(g => g.select(".domain").remove());
 
         // 6. Define soft gradient for area under the line
+        const gradientId = `chart-area-gradient-${symbol.replace(/[^a-zA-Z0-9]/g, '-')}`;
         const defs = svg.append("defs");
         const gradient = defs.append("linearGradient")
-            .attr("id", "chart-area-gradient")
+            .attr("id", gradientId)
             .attr("x1", "0%")
             .attr("y1", "0%")
             .attr("x2", "0%")
@@ -111,7 +112,7 @@ const LineChart = ({ data, symbol }) => {
 
         svg.append("path")
             .datum(cleanData)
-            .attr("fill", "url(#chart-area-gradient)")
+            .attr("fill", `url(#${gradientId})`)
             .attr("d", areaGenerator);
 
         // 8. Line generator (stroke line)

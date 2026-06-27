@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import json
+import numpy as np
 import websockets
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -353,6 +354,23 @@ async def websocket_predict(websocket: WebSocket):
                     "ticker": ticker,
                     "message": f"Subscribed to real-time ML updates for {ticker}"
                 })
+
+                # 4. Push initial prediction instantly from the pre-seeded buffer
+                if ticker in price_buffers:
+                    buffer = price_buffers[ticker]
+                    last_price = buffer[-1]
+                    try:
+                        prediction, metrics = predictor_service.predict_next_price(ticker, buffer)
+                        await websocket.send_json({
+                            "type": "live_update",
+                            "ticker": ticker,
+                            "price": last_price,
+                            "predicted_price": prediction,
+                            "accuracy_metrics": metrics
+                        })
+                        logger.info(f"Sent initial prediction for {ticker}: {prediction}")
+                    except Exception as e:
+                        logger.error(f"Failed to send initial prediction for {ticker}: {e}")
                 
             elif action == "unsubscribe":
                 await manager.unsubscribe(websocket, ticker)

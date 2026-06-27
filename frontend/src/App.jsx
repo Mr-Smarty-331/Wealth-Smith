@@ -3,6 +3,7 @@ import StockCard from './components/StockCard';
 import { getStockQuote, getHistoricalData, getCompanyProfile } from './api/stockService';
 import LineChart from './components/LineChart';
 import Portfolio from './components/Portfolio';
+import MarketOverview from './components/MarketOverview';
 import { calculatePortfolioMetrics } from './utils/portfolioMath';
 import useWebSocket from './api/useWebSocket';
 import './index.css';
@@ -77,6 +78,7 @@ const ChevronRightIcon = () => (
 const STARTING_CASH = 100000;
 
 function App() {
+  const [activeTab, setActiveTab] = useState('market');
   const [activeSymbol, setActiveSymbol] = useState('AAPL');
   const [stockData1, setStockData1] = useState(null);
   const [stockData2, setStockData2] = useState(null);
@@ -84,6 +86,8 @@ function App() {
   const [name2, setName2] = useState('');
   const [loading, setLoading] = useState(true);
   const [historicalData, setHistoricalData] = useState([]);
+  const [historicalData1, setHistoricalData1] = useState([]);
+  const [historicalData2, setHistoricalData2] = useState([]);
   const [error, setError] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -97,8 +101,9 @@ function App() {
     return saved !== null ? JSON.parse(saved) : [];
   });
 
-  // Track live prices map in state
+  // Track live prices map and predictions map in state
   const [livePrices, setLivePrices] = useState({});
+  const [predictions, setPredictions] = useState({});
 
   // Sync cash & holdings to localStorage
   useEffect(() => {
@@ -118,6 +123,15 @@ function App() {
       setLivePrices(prev => ({
         ...prev,
         [ticker]: price
+      }));
+
+      // Update predictions cache
+      setPredictions(prev => ({
+        ...prev,
+        [ticker]: {
+          predictedPrice: predicted_price,
+          accuracyMetrics: accuracy_metrics
+        }
       }));
       
       // Sync values back to comparison cards state
@@ -169,17 +183,21 @@ function App() {
       setLoading(true);
       setError(null);
       
-      const [q1, q2, p1, p2] = await Promise.all([
+      const [q1, q2, p1, p2, h1, h2] = await Promise.all([
         getStockQuote(inputSymbol1),
         getStockQuote(inputSymbol2),
         getCompanyProfile(inputSymbol1),
-        getCompanyProfile(inputSymbol2)
+        getCompanyProfile(inputSymbol2),
+        getHistoricalData(inputSymbol1, activeTimeframe),
+        getHistoricalData(inputSymbol2, activeTimeframe)
       ]);
 
       setStockData1(q1);
       setStockData2(q2);
       setName1(p1 ? p1.name : q1?.symbol || inputSymbol1.toUpperCase());
       setName2(p2 ? p2.name : q2?.symbol || inputSymbol2.toUpperCase());
+      setHistoricalData1(h1);
+      setHistoricalData2(h2);
 
       // Update livePrices cache
       setLivePrices(prev => {
@@ -204,7 +222,7 @@ function App() {
     fetchComparisonData();
   }, []);
 
-  // Fetch chart data when activeSymbol or activeTimeframe changes
+  // Fetch chart data when activeSymbol or activeTimeframe changes (for AI Prediction tab)
   useEffect(() => {
     const fetchChartData = async () => {
       try {
@@ -223,8 +241,54 @@ function App() {
     fetchChartData();
   }, [activeSymbol, activeTimeframe]);
 
-  // Resolve whichever stock quote is currently selected/active
-  const activeStockQuote = (stockData2 && activeSymbol === stockData2.symbol) ? stockData2 : stockData1;
+  // Dynamic effect to re-fetch comparison charts whenever comparative symbols or activeTimeframe changes
+  useEffect(() => {
+    const fetchComparisonCharts = async () => {
+      if (!stockData1?.symbol || !stockData2?.symbol) return;
+      try {
+        const [h1, h2] = await Promise.all([
+          getHistoricalData(stockData1.symbol, activeTimeframe),
+          getHistoricalData(stockData2.symbol, activeTimeframe)
+        ]);
+        setHistoricalData1(h1);
+        setHistoricalData2(h2);
+      } catch (err) {
+        console.error("Error updating comparison charts:", err);
+      }
+    };
+    fetchComparisonCharts();
+  }, [stockData1?.symbol, stockData2?.symbol, activeTimeframe]);
+
+  // Helper to enrich stock quote with cached live prices and AI predictions
+  const getEnrichedStockData = (stockData) => {
+    if (!stockData) return null;
+    const ticker = stockData.symbol;
+    const livePrice = livePrices[ticker];
+    const pred = predictions[ticker];
+    
+    let currentPrice = stockData.currentPrice;
+    let change = stockData.change;
+    let changePercent = stockData.changePercent;
+    
+    if (livePrice && livePrice !== stockData.currentPrice) {
+      currentPrice = livePrice;
+      change = livePrice - stockData.previousClose;
+      changePercent = (change / stockData.previousClose) * 100;
+    }
+    
+    return {
+      ...stockData,
+      currentPrice,
+      change,
+      changePercent,
+      predictedPrice: pred?.predictedPrice || stockData.predictedPrice,
+      accuracyMetrics: pred?.accuracyMetrics || stockData.accuracyMetrics
+    };
+  };
+
+  // Resolve whichever stock quote is currently selected/active and enrich it
+  const rawActiveStockQuote = (stockData2 && activeSymbol === stockData2.symbol) ? stockData2 : stockData1;
+  const activeStockQuote = getEnrichedStockData(rawActiveStockQuote);
 
   // Merge price dynamically into livePrices if available
   const activePriceMap = activeStockQuote ? { ...livePrices, [activeStockQuote.symbol]: activeStockQuote.currentPrice } : livePrices;
@@ -338,42 +402,34 @@ function App() {
 
         {/* Scrollable Middle Segment */}
         <nav className="sidebar-menu">
-          <a className="sidebar-menu-item active">
-            <span className="flex-align-center" style={{ gap: '10px' }}>
-              <SummaryIcon /> 
-              {!isCollapsed && <span>Stock Summary</span>}
-            </span>
-          </a>
-          <a className="sidebar-menu-item">
+          <a 
+            className={`sidebar-menu-item ${activeTab === 'market' ? 'active' : ''}`}
+            onClick={() => setActiveTab('market')}
+          >
             <span className="flex-align-center" style={{ gap: '10px' }}>
               <MarketsIcon /> 
-              {!isCollapsed && <span>Stock Markets</span>}
+              {!isCollapsed && <span>Market Overview</span>}
             </span>
           </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}>
-              <TickersIcon /> 
-              {!isCollapsed && <span>Tickers</span>}
-            </span>
-          </a>
-          <a className="sidebar-menu-item">
+          <a 
+            className={`sidebar-menu-item ${activeTab === 'compare' ? 'active' : ''}`}
+            onClick={() => setActiveTab('compare')}
+          >
             <span className="flex-align-center" style={{ gap: '10px' }}>
               <CompareIcon /> 
               {!isCollapsed && <span>Stock Comparison</span>}
             </span>
           </a>
-          <a className="sidebar-menu-item">
+          <a 
+            className={`sidebar-menu-item ${activeTab === 'prediction' ? 'active' : ''}`}
+            onClick={() => setActiveTab('prediction')}
+          >
             <span className="flex-align-center" style={{ gap: '10px' }}>
-              <ScannersIcon /> 
-              {!isCollapsed && <span>Scanners</span>}
+              <SummaryIcon /> 
+              {!isCollapsed && <span>AI Price Prediction</span>}
             </span>
           </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}>
-              <PortfolioIcon /> 
-              {!isCollapsed && <span>Portfolio</span>}
-            </span>
-          </a>
+
         </nav>
 
         {/* Fixed Bottom Segment */}
@@ -431,121 +487,212 @@ function App() {
           </div>
         </header>
 
-        {/* Search / Compare Stocks Panel */}
-        <section className="compare-container">
-          <h2 className="section-title">Search Stocks to Compare</h2>
-          <form onSubmit={handleCompare} className="compare-inputs-row">
-            <div className="compare-input-wrapper">
-              <span className="input-label-tag">1st Stock</span>
-              <input 
-                type="text" 
-                className="stock-input-field" 
-                value={inputSymbol1} 
-                onChange={(e) => setInputSymbol1(e.target.value)} 
-                required 
-              />
-              {name1 && (
-                <span className="resolved-stock-name">{name1}</span>
-              )}
-              <span className="input-icon-right"><SearchIcon /></span>
-            </div>
-            <div className="compare-input-wrapper">
-              <span className="input-label-tag">2nd Stock</span>
-              <input 
-                type="text" 
-                className="stock-input-field" 
-                value={inputSymbol2} 
-                onChange={(e) => setInputSymbol2(e.target.value)} 
-                required 
-              />
-              {name2 && (
-                <span className="resolved-stock-name">{name2}</span>
-              )}
-              <span className="input-icon-right"><SearchIcon /></span>
-            </div>
-            <button type="submit" className="btn-black-pill">Compare Now</button>
-          </form>
-        </section>
-
-        {/* Overview Header */}
-        <h2 className="section-subtitle">Overview</h2>
-
-        {/* Status / Error display */}
-        {loading && <p style={{ color: 'var(--text-muted)' }}>Fetching live market data...</p>}
-        {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
-        {wsStatus === 'training' && (
-          <div style={{ padding: '16px 24px', borderRadius: '24px', backgroundColor: '#fffbeb', border: '2px solid #fef3c7', color: '#b45309', fontWeight: 'bold', marginBottom: '24px' }}>
-            ⚡ {trainingMessage || `Training AI predictor model for ${activeSymbol} in the background. Please wait ~10 seconds...`}
+        {/* Dynamic page contents based on activeTab */}
+        {activeTab === 'market' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            <MarketOverview 
+              activeSymbol={activeSymbol}
+              setActiveSymbol={setActiveSymbol}
+              livePrices={activePriceMap}
+              onExecuteTrade={handleExecuteTrade}
+            />
+            {/* Show Portfolio summary / Cash cards & Table in Market Overview */}
+            <Portfolio 
+              holdings={holdings} 
+              setHoldings={setHoldings} 
+              livePrices={activePriceMap} 
+              cash={cash}
+              setCash={setCash}
+              onExecuteTrade={handleExecuteTrade}
+              startingCash={STARTING_CASH}
+              activeSymbol={activeSymbol}
+              setActiveSymbol={setActiveSymbol}
+            />
           </div>
         )}
 
-        {/* Stock Overview Cards Grid - Dynamic comparison side-by-side */}
-        <div className="overview-grid">
-          {stockData1 && (
-            <StockCard 
-              data={stockData1} 
-              companyName={name1}
-              onClick={() => setActiveSymbol(stockData1.symbol)} 
-              isActive={activeSymbol === stockData1.symbol}
-            />
-          )}
-          {stockData2 && (
-            <StockCard 
-              data={stockData2} 
-              companyName={name2}
-              onClick={() => setActiveSymbol(stockData2.symbol)} 
-              isActive={activeSymbol === stockData2.symbol}
-            />
-          )}
-        </div>
+        {activeTab === 'compare' && (
+          <>
+            {/* Search / Compare Stocks Panel */}
+            <section className="compare-container">
+              <h2 className="section-title">Search Stocks to Compare</h2>
+              <form onSubmit={handleCompare} className="compare-inputs-row">
+                <div className="compare-input-wrapper">
+                  <span className="input-label-tag">1st Stock</span>
+                  <input 
+                    type="text" 
+                    className="stock-input-field" 
+                    value={inputSymbol1} 
+                    onChange={(e) => setInputSymbol1(e.target.value)} 
+                    required 
+                  />
+                  {name1 && (
+                    <span className="resolved-stock-name">{name1}</span>
+                  )}
+                  <span className="input-icon-right"><SearchIcon /></span>
+                </div>
+                <div className="compare-input-wrapper">
+                  <span className="input-label-tag">2nd Stock</span>
+                  <input 
+                    type="text" 
+                    className="stock-input-field" 
+                    value={inputSymbol2} 
+                    onChange={(e) => setInputSymbol2(e.target.value)} 
+                    required 
+                  />
+                  {name2 && (
+                    <span className="resolved-stock-name">{name2}</span>
+                  )}
+                  <span className="input-icon-right"><SearchIcon /></span>
+                </div>
+                <button type="submit" className="btn-black-pill">Compare Now</button>
+              </form>
+            </section>
 
-        {/* Price Comparison / Line Chart section */}
-        <section className="chart-card">
-          <div className="chart-card-header">
-            <div className="chart-info">
-              <span style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>Price Comparison</span>
-              {activeStockQuote && (
-                <>
-                  <span className="chart-price" style={{ marginLeft: '10px' }}>${activeStockQuote.currentPrice.toFixed(2)}</span>
-                  <span className={`chart-change ${isTrendUp ? 'up' : 'down'}`} style={{ marginLeft: '10px' }}>
-                    {isTrendUp ? '+' : ''}{activeStockQuote.changePercent}%
-                  </span>
-                </>
+            {/* Overview Header */}
+            <h2 className="section-subtitle">Overview Comparison</h2>
+
+            {/* Status / Error display */}
+            {loading && <p style={{ color: 'var(--text-muted)' }}>Fetching live market data...</p>}
+            {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
+
+            {/* Stock Overview Cards Grid */}
+            <div className="overview-grid">
+              {stockData1 && (
+                <StockCard 
+                  data={getEnrichedStockData(stockData1)} 
+                  companyName={name1}
+                  onClick={() => setActiveSymbol(stockData1.symbol)} 
+                  isActive={activeSymbol === stockData1.symbol}
+                />
+              )}
+              {stockData2 && (
+                <StockCard 
+                  data={getEnrichedStockData(stockData2)} 
+                  companyName={name2}
+                  onClick={() => setActiveSymbol(stockData2.symbol)} 
+                  isActive={activeSymbol === stockData2.symbol}
+                />
               )}
             </div>
 
-            {/* Timeframe Filter Tabs */}
-            <div className="time-tabs">
-              {['1 Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', '2 Years'].map((tab) => (
-                <button 
-                  key={tab} 
-                  className={`time-tab-btn ${activeTimeframe === tab ? 'active' : ''}`}
-                  onClick={() => setActiveTimeframe(tab)}
-                >
-                  {tab}
-                </button>
-              ))}
+            {/* Side-by-Side Comparative Charts */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px' }}>
+              <section className="chart-card" style={{ gridColumn: 'unset' }}>
+                <div className="chart-card-header">
+                  <div className="chart-info">
+                    <span style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>Historical Price Chart ({stockData1?.symbol || inputSymbol1})</span>
+                  </div>
+                </div>
+                {historicalData1.length > 0 && (
+                  <LineChart data={historicalData1} symbol={stockData1?.symbol || inputSymbol1} />
+                )}
+              </section>
+              <section className="chart-card" style={{ gridColumn: 'unset' }}>
+                <div className="chart-card-header">
+                  <div className="chart-info">
+                    <span style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>Historical Price Chart ({stockData2?.symbol || inputSymbol2})</span>
+                  </div>
+                </div>
+                {historicalData2.length > 0 && (
+                  <LineChart data={historicalData2} symbol={stockData2?.symbol || inputSymbol2} />
+                )}
+              </section>
             </div>
-          </div>
+          </>
+        )}
 
-          {/* D3 Area Line Chart */}
-          {historicalData.length > 0 && (
-            <LineChart data={historicalData} symbol={activeSymbol} />
-          )}
-        </section>
+        {activeTab === 'prediction' && (
+          <>
+            {/* Active Symbol Display & Status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 className="section-subtitle" style={{ marginTop: 0 }}>
+                AI LSTM Forecast: <span style={{ color: 'var(--text-dark)', backgroundColor: 'var(--accent-lime)', padding: '6px 16px', borderRadius: '16px', fontFamily: 'monospace' }}>{activeSymbol}</span>
+              </h2>
+              <div className="flex-align-center">
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>STREAM CONNECTION:</span>
+                <span style={{
+                  padding: '6px 12px',
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  backgroundColor: wsStatus === 'connected' ? '#dcfce7' : wsStatus === 'training' ? '#fef3c7' : '#fee2e2',
+                  color: wsStatus === 'connected' ? '#15803d' : wsStatus === 'training' ? '#b45309' : '#b91c1c'
+                }}>
+                  {wsStatus === 'connected' ? 'LIVE SYNC' : wsStatus === 'training' ? 'TRAINING AI' : 'OFFLINE'}
+                </span>
+              </div>
+            </div>
 
-        {/* Portfolio Tracker Section */}
-        <Portfolio 
-          holdings={holdings} 
-          setHoldings={setHoldings} 
-          livePrices={activePriceMap} 
-          cash={cash}
-          setCash={setCash}
-          onExecuteTrade={handleExecuteTrade}
-          startingCash={STARTING_CASH}
-          activeSymbol={activeSymbol}
-          setActiveSymbol={setActiveSymbol}
-        />
+            {/* Status / Error display */}
+            {wsStatus === 'training' && (
+              <div style={{ padding: '16px 24px', borderRadius: '24px', backgroundColor: '#fffbeb', border: '2px solid #fef3c7', color: '#b45309', fontWeight: 'bold', marginBottom: '24px' }}>
+                ⚡ {trainingMessage || `Training AI predictor model for ${activeSymbol} in the background. Please wait ~10 seconds...`}
+              </div>
+            )}
+
+            {/* Layout Grid: Chart left, Predicted StockCard right */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '30px', alignItems: 'start' }}>
+              {/* D3 Area Line Chart */}
+              <section className="chart-card">
+                <div className="chart-card-header">
+                  <div className="chart-info">
+                    <span style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>Historical Price Chart ({activeSymbol})</span>
+                    {activeStockQuote && (
+                      <>
+                        <span className="chart-price" style={{ marginLeft: '10px' }}>${activeStockQuote.currentPrice.toFixed(2)}</span>
+                        <span className={`chart-change ${isTrendUp ? 'up' : 'down'}`} style={{ marginLeft: '10px' }}>
+                          {isTrendUp ? '+' : ''}{activeStockQuote.changePercent}%
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Timeframe Filter Tabs */}
+                  <div className="time-tabs">
+                    {['1 Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', '2 Years'].map((tab) => (
+                      <button 
+                        key={tab} 
+                        className={`time-tab-btn ${activeTimeframe === tab ? 'active' : ''}`}
+                        onClick={() => setActiveTimeframe(tab)}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {historicalData.length > 0 && (
+                  <LineChart data={historicalData} symbol={activeSymbol} />
+                )}
+              </section>
+
+              {/* StockCard showing live quote and AI prediction */}
+              {activeStockQuote && (
+                <StockCard 
+                  data={activeStockQuote} 
+                  companyName={activeSymbol === stockData2?.symbol ? name2 : name1}
+                  isActive={true}
+                />
+              )}
+            </div>
+
+            {/* Trading Simulator */}
+            <Portfolio 
+              holdings={holdings} 
+              setHoldings={setHoldings} 
+              livePrices={activePriceMap} 
+              cash={cash}
+              setCash={setCash}
+              onExecuteTrade={handleExecuteTrade}
+              startingCash={STARTING_CASH}
+              activeSymbol={activeSymbol}
+              setActiveSymbol={setActiveSymbol}
+            />
+          </>
+        )}
+
+
       </main>
     </div>
   );
