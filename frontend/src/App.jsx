@@ -4,6 +4,8 @@ import { getStockQuote, getHistoricalData, getCompanyProfile } from './api/stock
 import LineChart from './components/LineChart';
 import Portfolio from './components/Portfolio';
 import MarketOverview from './components/MarketOverview';
+import SentimentGauge from './components/SentimentGauge';
+import NewsFeedWidget from './components/NewsFeedWidget';
 import { calculatePortfolioMetrics } from './utils/portfolioMath';
 import useWebSocket from './api/useWebSocket';
 import './index.css';
@@ -58,7 +60,24 @@ const MoonIcon = () => (
 );
 
 const WealthSmithLogo = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: 'var(--accent-lime)' }}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+  <div style={{
+    width: '30px',
+    height: '30px',
+    borderRadius: '8px',
+    backgroundColor: '#121212',
+    border: '1.5px solid var(--accent-lime)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: '900',
+    fontSize: '0.85rem',
+    color: 'var(--accent-lime)',
+    letterSpacing: '-0.05em',
+    boxShadow: '0 2px 10px rgba(196, 255, 0, 0.25)',
+    userSelect: 'none'
+  }}>
+    WS
+  </div>
 );
 
 const UserAvatar = () => (
@@ -91,6 +110,22 @@ function App() {
   const [error, setError] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Dark Mode State with localStorage persistence
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('wealth_smith_theme');
+    return saved === 'dark';
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('wealth_smith_theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('wealth_smith_theme', 'light');
+    }
+  }, [isDarkMode]);
+
   // Persistent cash and holdings state with localStorage
   const [cash, setCash] = useState(() => {
     const saved = localStorage.getItem('wealth_smith_cash');
@@ -117,7 +152,10 @@ function App() {
   // Handle incoming live tick updates and prediction results from local server WebSocket
   const handleWebSocketMessage = useCallback((data) => {
     if (data.type === 'live_update') {
-      const { ticker, price, prediction, signal, confidence_up, confidence, accuracy_metrics } = data;
+      const { 
+        ticker, price, prediction, signal, confidence_up, confidence, accuracy_metrics,
+        ts_prediction, ts_confidence, nlp_sentiment, nlp_confidence, ultimate_score, final_decision, news_sentiment 
+      } = data;
       
       // Update livePrices cache
       setLivePrices(prev => ({
@@ -125,15 +163,22 @@ function App() {
         [ticker]: price
       }));
 
-      // Update predictions cache with classification details
+      // Update predictions cache with multimodal details
       setPredictions(prev => ({
         ...prev,
         [ticker]: {
-          prediction,
-          signal,
+          prediction: prediction || final_decision,
+          signal: signal || (final_decision === 'UP' ? 'BUY' : 'SELL'),
           confidence_up,
           confidence,
-          accuracyMetrics: accuracy_metrics
+          accuracyMetrics: accuracy_metrics,
+          ts_prediction,
+          ts_confidence,
+          nlp_sentiment,
+          nlp_confidence,
+          ultimate_score,
+          final_decision,
+          news_sentiment
         }
       }));
       
@@ -147,11 +192,18 @@ function App() {
             currentPrice: price,
             change,
             changePercent,
-            prediction,
-            signal,
+            prediction: prediction || final_decision,
+            signal: signal || (final_decision === 'UP' ? 'BUY' : 'SELL'),
             confidence_up,
             confidence,
-            accuracyMetrics: accuracy_metrics
+            accuracyMetrics: accuracy_metrics,
+            ts_prediction,
+            ts_confidence,
+            nlp_sentiment,
+            nlp_confidence,
+            ultimate_score,
+            final_decision,
+            news_sentiment
           };
         }
         return prev;
@@ -166,11 +218,18 @@ function App() {
             currentPrice: price,
             change,
             changePercent,
-            prediction,
-            signal,
+            prediction: prediction || final_decision,
+            signal: signal || (final_decision === 'UP' ? 'BUY' : 'SELL'),
             confidence_up,
             confidence,
-            accuracyMetrics: accuracy_metrics
+            accuracyMetrics: accuracy_metrics,
+            ts_prediction,
+            ts_confidence,
+            nlp_sentiment,
+            nlp_confidence,
+            ultimate_score,
+            final_decision,
+            news_sentiment
           };
         }
         return prev;
@@ -179,6 +238,10 @@ function App() {
   }, []);
 
   const { status: wsStatus, trainingMessage } = useWebSocket(activeSymbol, handleWebSocketMessage);
+
+  // Search Bar State
+  const [headerSearchQuery, setHeaderSearchQuery] = useState('');
+  const [activeStockQuoteData, setActiveStockQuoteData] = useState(null);
 
   // Comparison form inputs
   const [inputSymbol1, setInputSymbol1] = useState('AAPL');
@@ -230,6 +293,23 @@ function App() {
   useEffect(() => {
     fetchComparisonData();
   }, []);
+
+  // Fetch stock quote whenever activeSymbol changes to ensure activeStockQuote is accurate
+  useEffect(() => {
+    const fetchActiveQuote = async () => {
+      if (!activeSymbol) return;
+      try {
+        const quote = await getStockQuote(activeSymbol);
+        if (quote) {
+          setActiveStockQuoteData(quote);
+          setLivePrices(prev => ({ ...prev, [quote.symbol]: quote.currentPrice }));
+        }
+      } catch (err) {
+        console.error("Error fetching quote for activeSymbol:", err);
+      }
+    };
+    fetchActiveQuote();
+  }, [activeSymbol]);
 
   // Fetch chart data when activeSymbol or activeTimeframe changes (for AI Prediction tab)
   useEffect(() => {
@@ -294,12 +374,21 @@ function App() {
       signal: pred?.signal || stockData.signal,
       confidence_up: pred?.confidence_up || stockData.confidence_up,
       confidence: pred?.confidence || stockData.confidence,
-      accuracyMetrics: pred?.accuracyMetrics || stockData.accuracyMetrics
+      accuracyMetrics: pred?.accuracyMetrics || stockData.accuracyMetrics,
+      ts_prediction: pred?.ts_prediction || stockData.ts_prediction,
+      ts_confidence: pred?.ts_confidence || stockData.ts_confidence,
+      nlp_sentiment: pred?.nlp_sentiment || stockData.nlp_sentiment,
+      nlp_confidence: pred?.nlp_confidence || stockData.nlp_confidence,
+      ultimate_score: pred?.ultimate_score || stockData.ultimate_score,
+      final_decision: pred?.final_decision || stockData.final_decision,
+      news_sentiment: pred?.news_sentiment || stockData.news_sentiment
     };
   };
 
   // Resolve whichever stock quote is currently selected/active and enrich it
-  const rawActiveStockQuote = (stockData2 && activeSymbol === stockData2.symbol) ? stockData2 : stockData1;
+  const rawActiveStockQuote = (activeStockQuoteData && activeStockQuoteData.symbol === activeSymbol)
+    ? activeStockQuoteData
+    : (stockData2 && activeSymbol === stockData2.symbol) ? stockData2 : stockData1;
   const activeStockQuote = getEnrichedStockData(rawActiveStockQuote);
 
   // Merge price dynamically into livePrices if available
@@ -369,6 +458,15 @@ function App() {
     }
   };
 
+  // Handle global top header search bar submit across all tabs
+  const handleHeaderSearch = (e) => {
+    e.preventDefault();
+    if (!headerSearchQuery.trim()) return;
+    const symbol = headerSearchQuery.trim().toUpperCase();
+    setActiveSymbol(symbol);
+    setHeaderSearchQuery('');
+  };
+
   // Get current date string for sidebar
   const currentDateStr = new Date().toLocaleDateString('en-US', {
     month: 'short',
@@ -382,16 +480,14 @@ function App() {
       <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
         {/* Fixed Top Segment */}
         <div className="sidebar-top">
-          <div className="logo-container">
+          <div 
+            className="logo-container" 
+            onClick={() => setIsCollapsed(!isCollapsed)} 
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+            title={isCollapsed ? "Click to Expand Sidebar" : "Click to Collapse Sidebar"}
+          >
             <div className="logo-icon" style={{ backgroundColor: 'transparent' }}><WealthSmithLogo /></div>
             {!isCollapsed && <span>Wealth Smith</span>}
-            <button 
-              onClick={() => setIsCollapsed(!isCollapsed)} 
-              className="sidebar-toggle-btn"
-              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-            >
-              {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-            </button>
           </div>
 
           {/* Sidebar Portfolio Widget - Hidden when collapsed */}
@@ -441,6 +537,15 @@ function App() {
               {!isCollapsed && <span>AI Price Prediction</span>}
             </span>
           </a>
+          <a 
+            className={`sidebar-menu-item ${activeTab === 'sentiment' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sentiment')}
+          >
+            <span className="flex-align-center" style={{ gap: '10px' }}>
+              <span style={{ fontSize: '1.1rem' }}>📰</span> 
+              {!isCollapsed && <span>Sentiment Tracker</span>}
+            </span>
+          </a>
 
         </nav>
 
@@ -469,13 +574,23 @@ function App() {
               {!isCollapsed && <span>Help</span>}
             </span>
           </a>
-          <div className="sidebar-menu-item" style={{ cursor: 'default' }}>
+          <div className="sidebar-menu-item" style={{ cursor: 'pointer' }} onClick={() => setIsDarkMode(prev => !prev)}>
             <span className="flex-align-center" style={{ width: '100%', justifyContent: isCollapsed ? 'center' : 'space-between' }}>
               <span className="flex-align-center" style={{ gap: '10px' }}>
                 <MoonIcon /> 
                 {!isCollapsed && <span>Dark Mode</span>}
               </span>
-              {!isCollapsed && <input type="checkbox" style={{ cursor: 'pointer' }} />}
+              {!isCollapsed && (
+                <input 
+                  type="checkbox" 
+                  checked={isDarkMode} 
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setIsDarkMode(e.target.checked);
+                  }} 
+                  style={{ cursor: 'pointer' }} 
+                />
+              )}
             </span>
           </div>
         </div>
@@ -485,10 +600,16 @@ function App() {
       <main className="main-content">
         {/* Top Header */}
         <header className="dashboard-header">
-          <div className="header-search">
+          <form onSubmit={handleHeaderSearch} className="header-search">
             <span className="header-search-icon" style={{ zIndex: 1 }}><SearchIcon /></span>
-            <input type="text" placeholder="What do you want to find?" />
-          </div>
+            <input 
+              type="text" 
+              placeholder="Search any ticker (e.g. TSLA, NVDA, AAPL)..." 
+              value={headerSearchQuery}
+              onChange={(e) => setHeaderSearchQuery(e.target.value)}
+            />
+            <button type="submit" style={{ display: 'none' }}>Search</button>
+          </form>
           
           <div className="header-actions">
             <button className="notification-btn"><BellIcon /></button>
@@ -704,6 +825,13 @@ function App() {
           </>
         )}
 
+        {/* --- TAB 4: SENTIMENT TRACKER --- */}
+        {activeTab === 'sentiment' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', width: '100%', marginTop: '10px' }}>
+            <SentimentGauge data={activeStockQuote?.news_sentiment} symbol={activeSymbol} />
+            <NewsFeedWidget symbol={activeSymbol} />
+          </div>
+        )}
 
       </main>
     </div>

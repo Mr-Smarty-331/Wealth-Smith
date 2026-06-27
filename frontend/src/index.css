@@ -18,6 +18,74 @@
   --radius-card: 24px;
 }
 
+[data-theme="dark"] {
+  --bg-app: #0d0f12;
+  --bg-card: #161920;
+  --accent-lime: #c4ff00;
+  --accent-lime-hover: #b2e600;
+  --bg-dark: #1e222d;
+  --bg-dark-hover: #2a2f3d;
+  --text-dark: #f3f4f6;
+  --text-muted: #9ca3af;
+  --text-light: #ffffff;
+  --border-light: #262a34;
+  --card-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark Mode Overrides & Comprehensive UI Polish */
+[data-theme="dark"] .header-search input,
+[data-theme="dark"] .notification-btn,
+[data-theme="dark"] .profile-widget,
+[data-theme="dark"] .compare-container {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-light) !important;
+  color: var(--text-dark) !important;
+}
+
+[data-theme="dark"] .header-search input:focus,
+[data-theme="dark"] .compare-input-wrapper:focus-within,
+[data-theme="dark"] .portfolio-form-pill input:focus {
+  background-color: var(--bg-card) !important;
+  border-color: var(--accent-lime) !important;
+}
+
+[data-theme="dark"] .compare-input-wrapper,
+[data-theme="dark"] .portfolio-form-pill input {
+  background-color: #12151c !important;
+  border-color: var(--border-light) !important;
+  color: var(--text-dark) !important;
+}
+
+[data-theme="dark"] .btn-black-pill,
+[data-theme="dark"] .btn-primary-pill {
+  background-color: var(--accent-lime) !important;
+  color: #121212 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="dark"] .btn-black-pill:hover,
+[data-theme="dark"] .btn-primary-pill:hover {
+  background-color: var(--accent-lime-hover) !important;
+}
+
+[data-theme="dark"] .sidebar-portfolio-card {
+  background-color: #1e222d !important;
+  border: 1px solid var(--border-light) !important;
+}
+
+[data-theme="dark"] .horizontal-stock-tile:hover {
+  border-color: var(--accent-lime) !important;
+  background-color: #1a1e27 !important;
+}
+
+[data-theme="dark"] .stock-card-icon,
+[data-theme="dark"] .tile-avatar {
+  background-color: #262a34 !important;
+  color: var(--accent-lime) !important;
+  border: 1.5px solid var(--accent-lime) !important;
+  font-weight: 800 !important;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -70,14 +138,18 @@ body {
 .logo-container {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-dark);
   margin-bottom: 30px;
   position: relative;
-  gap: 10px;
   width: 100%;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.logo-container:hover {
+  transform: scale(1.03);
 }
 
 .sidebar.collapsed .logo-container {
@@ -119,11 +191,13 @@ body {
 
 .sidebar.collapsed .sidebar-toggle-btn {
   position: absolute;
-  right: -6px;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
   background-color: var(--bg-card);
   border: 1px solid var(--border-light);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  z-index: 10;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 20;
 }
 
 /* Sidebar Portfolio Widget */
@@ -463,12 +537,13 @@ body {
   width: 44px;
   height: 44px;
   background-color: var(--bg-app);
+  border: 1px solid var(--border-light);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-dark);
 }
 

@@ -52,7 +52,7 @@ const LineChart = ({ data, symbol }) => {
         svg.append("g")
             .attr("class", "chart-grid")
             .call(yGrid)
-            .attr("color", "#f1f3f5")
+            .attr("color", "var(--border-light)")
             .style("stroke-dasharray", "4,4")
             .call(g => g.select(".domain").remove());
 

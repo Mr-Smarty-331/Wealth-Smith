@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  # Wealth Smith FastAPI ML & NLP Backend Microservice
+  backend:
+    build:
+      context: ./backend/ws-backend
+      dockerfile: Dockerfile
+    container_name: wealth_smith_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    restart: unless-stopped
+    volumes:
+      - ./backend/ws-backend/ml_core/models:/app/ml_core/models
+      - ./backend/ws-backend/ml_core/nlp_engine/sentiment_model.h5:/app/ml_core/nlp_engine/sentiment_model.h5
