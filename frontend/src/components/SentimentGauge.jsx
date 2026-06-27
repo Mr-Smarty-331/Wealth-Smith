@@ -119,7 +119,7 @@ const SentimentGauge = ({ data, symbol }) => {
             </div>
 
             <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)' }}>
-                📰 Analyzed {totalArticles} recent Finnhub articles
+                Analyzed {totalArticles} recent Finnhub articles
             </div>
         </div>
     );

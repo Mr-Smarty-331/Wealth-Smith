@@ -96,10 +96,10 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
                     {data.ts_prediction && (
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-light)' }}>
                             <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-dark)', textAlign: 'center' }}>
-                                📈 TS: {data.ts_prediction} ({Math.round((data.ts_confidence || 0.5) * 100)}%)
+                                TS: {data.ts_prediction} ({Math.round((data.ts_confidence || 0.5) * 100)}%)
                             </div>
                             <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-dark)', textAlign: 'center' }}>
-                                📰 NLP: {data.nlp_sentiment || 'Neutral'}
+                                NLP: {data.nlp_sentiment || 'Neutral'}
                             </div>
                         </div>
                     )}

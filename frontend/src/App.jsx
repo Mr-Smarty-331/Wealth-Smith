@@ -43,6 +43,10 @@ const PortfolioIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
 );
 
+const SentimentIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path><path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path></svg>
+);
+
 const InboxIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
 );
@@ -501,7 +505,7 @@ function App() {
                 <div className="sidebar-portfolio-label">Total Value</div>
                 <div className="sidebar-portfolio-value">${netWorth.toLocaleString()}</div>
                 <div className="sidebar-portfolio-trend">
-                  {isNetWorthUp ? '▲' : '▼'} {Math.abs(netWorthProfitPercent)}%
+                  {isNetWorthUp ? '+' : '-'} {Math.abs(netWorthProfitPercent)}%
                 </div>
               </div>
             </div>
@@ -542,7 +546,7 @@ function App() {
             onClick={() => setActiveTab('sentiment')}
           >
             <span className="flex-align-center" style={{ gap: '10px' }}>
-              <span style={{ fontSize: '1.1rem' }}>📰</span> 
+              <SentimentIcon /> 
               {!isCollapsed && <span>Sentiment Tracker</span>}
             </span>
           </a>
@@ -760,7 +764,7 @@ function App() {
             {/* Status / Error display */}
             {wsStatus === 'training' && (
               <div style={{ padding: '16px 24px', borderRadius: '24px', backgroundColor: '#fffbeb', border: '2px solid #fef3c7', color: '#b45309', fontWeight: 'bold', marginBottom: '24px' }}>
-                ⚡ {trainingMessage || `Training AI predictor model for ${activeSymbol} in the background. Please wait ~10 seconds...`}
+                {trainingMessage || `Training AI predictor model for ${activeSymbol} in the background. Please wait ~10 seconds...`}
               </div>
             )}
 

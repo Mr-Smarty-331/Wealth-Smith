@@ -1,22 +1,71 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { getStockQuote, getCompanyProfile } from '../api/stockService';
 
-const BASELINE_STOCKS = [
-    { symbol: 'AAPL', name: 'Apple Inc.', basePrice: 175.50, prevClose: 174.20 },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', basePrice: 415.60, prevClose: 412.30 },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', basePrice: 151.20, prevClose: 150.10 },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', basePrice: 178.40, prevClose: 179.10 },
-    { symbol: 'TSLA', name: 'Tesla Inc.', basePrice: 179.20, prevClose: 175.50 },
-    { symbol: 'NVDA', name: 'NVIDIA Corp.', basePrice: 875.10, prevClose: 850.30 },
-    { symbol: 'META', name: 'Meta Platforms Inc.', basePrice: 485.40, prevClose: 482.10 },
-    { symbol: 'NFLX', name: 'Netflix Inc.', basePrice: 610.50, prevClose: 605.20 },
-    { symbol: 'AMD', name: 'Advanced Micro Devices', basePrice: 160.30, prevClose: 162.10 },
-    { symbol: 'DIS', name: 'Walt Disney Co.', basePrice: 112.40, prevClose: 111.10 },
-    { symbol: 'JPM', name: 'JPMorgan Chase & Co.', basePrice: 195.80, prevClose: 194.50 },
-    { symbol: 'V', name: 'Visa Inc.', basePrice: 275.20, prevClose: 273.80 },
+const TOP_MARKET_TICKERS = [
+    { symbol: 'AAPL', defaultName: 'Apple Inc.' },
+    { symbol: 'MSFT', defaultName: 'Microsoft Corp.' },
+    { symbol: 'GOOGL', defaultName: 'Alphabet Inc.' },
+    { symbol: 'AMZN', defaultName: 'Amazon.com Inc.' },
+    { symbol: 'TSLA', defaultName: 'Tesla Inc.' },
+    { symbol: 'NVDA', defaultName: 'NVIDIA Corp.' },
+    { symbol: 'META', defaultName: 'Meta Platforms Inc.' },
+    { symbol: 'NFLX', defaultName: 'Netflix Inc.' },
+    { symbol: 'AMD', defaultName: 'Advanced Micro Devices' },
+    { symbol: 'DIS', defaultName: 'Walt Disney Co.' },
+    { symbol: 'JPM', defaultName: 'JPMorgan Chase & Co.' },
+    { symbol: 'V', defaultName: 'Visa Inc.' },
 ];
 
 export const MarketOverview = ({ activeSymbol, setActiveSymbol, livePrices, onExecuteTrade }) => {
-    
+    const [marketQuotes, setMarketQuotes] = useState({});
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAllMarketData = async () => {
+            try {
+                setLoading(true);
+                const quotePromises = TOP_MARKET_TICKERS.map(async (item) => {
+                    try {
+                        const [quote, profile] = await Promise.all([
+                            getStockQuote(item.symbol),
+                            getCompanyProfile(item.symbol)
+                        ]);
+                        return {
+                            symbol: item.symbol,
+                            name: profile?.name || quote?.companyName || item.defaultName,
+                            currentPrice: quote?.currentPrice || 0,
+                            previousClose: quote?.previousClose || 0,
+                            change: quote?.change || 0,
+                            changePercent: quote?.changePercent || 0
+                        };
+                    } catch (err) {
+                        return {
+                            symbol: item.symbol,
+                            name: item.defaultName,
+                            currentPrice: 0,
+                            previousClose: 0,
+                            change: 0,
+                            changePercent: 0
+                        };
+                    }
+                });
+
+                const results = await Promise.all(quotePromises);
+                const quotesMap = {};
+                results.forEach(res => {
+                    quotesMap[res.symbol] = res;
+                });
+                setMarketQuotes(quotesMap);
+                setLoading(false);
+            } catch (err) {
+                console.error("Error fetching market overview live quotes:", err);
+                setLoading(false);
+            }
+        };
+
+        fetchAllMarketData();
+    }, []);
+
     const handleQuickTrade = (e, action, symbol, price) => {
         e.stopPropagation(); // Avoid triggering card click selection
         const qty = prompt(`How many shares of ${symbol} would you like to ${action}?`, "10");
@@ -36,56 +85,66 @@ export const MarketOverview = ({ activeSymbol, setActiveSymbol, livePrices, onEx
     return (
         <div className="market-overview-container">
             <h2 className="section-title">Markets Overview (Top 12 Gainers & Indices)</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {BASELINE_STOCKS.map((stock) => {
-                    // Resolve live price from WebSocket if available, fallback to baseline
-                    const currentPrice = livePrices[stock.symbol] || stock.basePrice;
-                    const change = currentPrice - stock.prevClose;
-                    const changePercent = (change / stock.prevClose) * 100;
-                    const isPositive = change >= 0;
-                    const isActive = activeSymbol === stock.symbol;
-                    
-                    return (
-                        <div 
-                            key={stock.symbol}
-                            className={`horizontal-stock-tile ${isActive ? 'active' : ''}`}
-                            onClick={() => setActiveSymbol(stock.symbol)}
-                        >
-                            <div className="tile-info-col">
-                                <div className="tile-avatar" style={{ backgroundColor: isPositive ? 'rgba(0, 217, 36, 0.08)' : 'rgba(255, 42, 42, 0.08)' }}>
-                                    {stock.symbol.charAt(0)}
+            {loading && Object.keys(marketQuotes).length === 0 ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontWeight: '600' }}>
+                    Fetching live market quotes...
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {TOP_MARKET_TICKERS.map((item) => {
+                        const fetchedData = marketQuotes[item.symbol] || {};
+                        const companyName = fetchedData.name || item.defaultName;
+                        const prevClose = fetchedData.previousClose || 100;
+                        
+                        // Dynamically merge live price updates from WebSocket stream if present
+                        const currentPrice = livePrices[item.symbol] || fetchedData.currentPrice || prevClose;
+                        const change = currentPrice - prevClose;
+                        const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+                        const isPositive = change >= 0;
+                        const isActive = activeSymbol === item.symbol;
+                        
+                        return (
+                            <div 
+                                key={item.symbol}
+                                className={`horizontal-stock-tile ${isActive ? 'active' : ''}`}
+                                onClick={() => setActiveSymbol(item.symbol)}
+                            >
+                                <div className="tile-info-col">
+                                    <div className="tile-avatar" style={{ backgroundColor: isPositive ? 'rgba(0, 217, 36, 0.08)' : 'rgba(255, 42, 42, 0.08)' }}>
+                                        {item.symbol.charAt(0)}
+                                    </div>
+                                    <div className="tile-symbol-name">
+                                        <span className="tile-ticker">{item.symbol}</span>
+                                        <span className="tile-name">{companyName}</span>
+                                    </div>
                                 </div>
-                                <div className="tile-symbol-name">
-                                    <span className="tile-ticker">{stock.symbol}</span>
-                                    <span className="tile-name">{stock.name}</span>
+                                
+                                <div className="tile-price-trend">
+                                    <span className="tile-price">${currentPrice.toFixed(2)}</span>
+                                    <span className={`tile-change-badge ${isPositive ? 'up' : 'down'}`}>
+                                        {isPositive ? '▲' : '▼'} {Math.abs(changePercent).toFixed(2)}%
+                                    </span>
+                                </div>
+                                
+                                <div className="tile-actions">
+                                    <button 
+                                        className="btn-tile-trade buy"
+                                        onClick={(e) => handleQuickTrade(e, 'BUY', item.symbol, currentPrice)}
+                                    >
+                                        BUY
+                                    </button>
+                                    <button 
+                                        className="btn-tile-trade sell"
+                                        onClick={(e) => handleQuickTrade(e, 'SELL', item.symbol, currentPrice)}
+                                    >
+                                        SELL
+                                    </button>
                                 </div>
                             </div>
-                            
-                            <div className="tile-price-trend">
-                                <span className="tile-price">${currentPrice.toFixed(2)}</span>
-                                <span className={`tile-change-badge ${isPositive ? 'up' : 'down'}`}>
-                                    {isPositive ? '▲' : '▼'} {Math.abs(changePercent).toFixed(2)}%
-                                </span>
-                            </div>
-                            
-                            <div className="tile-actions">
-                                <button 
-                                    className="btn-tile-trade buy"
-                                    onClick={(e) => handleQuickTrade(e, 'BUY', stock.symbol, currentPrice)}
-                                >
-                                    BUY
-                                </button>
-                                <button 
-                                    className="btn-tile-trade sell"
-                                    onClick={(e) => handleQuickTrade(e, 'SELL', stock.symbol, currentPrice)}
-                                >
-                                    SELL
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 };
