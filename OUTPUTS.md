@@ -1,14 +1,14 @@
-# 📸 Wealth Smith AI — Application Demonstrations & Output Showcase
+# Wealth Smith AI — Application Demonstrations & Output Showcase
 
 Welcome to the visual demonstration guide for **Wealth Smith AI**. This document showcases the platform's core user interface, real-time analytics, multimodal AI inference engines, and cloud trading execution.
 
 ---
 
-## 🖼️ Application Showcase & Descriptions
+## Application Showcase & Descriptions
 
 ---
 
-### 1. 💼 My Portfolio & Live Trading Simulator
+### 1. My Portfolio & Live Trading Simulator
 
 ![My Portfolio & Live Trading Simulator](./Results/dashboard.png)
 
@@ -16,7 +16,7 @@ Welcome to the visual demonstration guide for **Wealth Smith AI**. This document
 
 ---
 
-### 2. 📈 Interactive Canvas Technical Charting & Stock Comparison
+### 2. Interactive Canvas Technical Charting & Stock Comparison
 
 ![Stock Comparison & Technical Canvas Charting](./Results/stock%20comparison.png)
 
@@ -24,7 +24,7 @@ Welcome to the visual demonstration guide for **Wealth Smith AI**. This document
 
 ---
 
-### 3. 🧠 Multimodal AI Trade Signal & Dual-Inference Engine
+### 3. Multimodal AI Trade Signal & Dual-Inference Engine
 
 ![Multimodal AI Trade Signal Engine](./Results/trade%20sig.png)
 
@@ -32,7 +32,7 @@ Welcome to the visual demonstration guide for **Wealth Smith AI**. This document
 
 ---
 
-### 4. 📰 NLP Sentiment Tracker & Market News Feed
+### 4. NLP Sentiment Tracker & Market News Feed
 
 ![NLP Sentiment Tracker & News Feed](./Results/sentiment%20analysis.png)
 
@@ -40,7 +40,7 @@ Welcome to the visual demonstration guide for **Wealth Smith AI**. This document
 
 ---
 
-### 5. 📥 Inbox — Executed Trade Audit Logs
+### 5. Inbox — Executed Trade Audit Logs
 
 ![Executed Trade Audit Logs Inbox](./Results/trade%20logs.png)
 
