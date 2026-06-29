@@ -8,6 +8,7 @@
 
 **Wealth Smith AI** is an enterprise-grade, full-stack quantitative trading and financial analytics platform. It combines real-time WebSocket tick streaming, Deep Learning time-series binary classification (LSTM), Transformer/TF-IDF multi-class NLP market sentiment analysis, and resilient serverless cloud infrastructure on AWS.
 
+Link : http://wealth-smith-frontend-web.s3-website-us-east-1.amazonaws.com/
 ---
 
 ## Key Features
