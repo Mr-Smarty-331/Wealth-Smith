@@ -138,6 +138,14 @@ def train_model_for_ticker(ticker: str) -> bool:
         with open(metrics_path, "w") as f:
             json.dump(metrics, f, indent=4)
 
+        # Sync trained artifacts to AWS S3 Cloud Storage
+        try:
+            import asyncio
+            from model_storage_service import save_model_to_aws
+            asyncio.run(save_model_to_aws(ticker, model_path, scaler_path))
+        except Exception as aws_err:
+            print(f"AWS S3 Sync Note: {aws_err}")
+
         print(f"Binary classification model training complete for {ticker}!")
         return True
     except Exception as e:

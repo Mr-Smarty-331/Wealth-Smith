@@ -1,6 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { API_BASE_URL } from '../api/config';
 
-const SentimentGauge = ({ data, symbol }) => {
+const SentimentGauge = ({ data: propData, symbol }) => {
+    const [fetchedData, setFetchedData] = useState(null);
+
+    useEffect(() => {
+        const fetchSentiment = async () => {
+            if (!symbol) return;
+            try {
+                const res = await axios.get(`${API_BASE_URL}/api/sentiment`, {
+                    params: { symbol: symbol.toUpperCase() }
+                });
+                if (res.data) {
+                    setFetchedData(res.data);
+                }
+            } catch (err) {
+                console.error("Error fetching live sentiment:", err);
+            }
+        };
+        fetchSentiment();
+    }, [symbol]);
+
+    const data = propData || fetchedData;
+
     const sentiment = data?.overall_sentiment || 'Neutral';
     const bullishRatio = data?.bullish_ratio !== undefined ? data.bullish_ratio : 0.33;
     const bearishRatio = data?.bearish_ratio !== undefined ? data.bearish_ratio : 0.33;
@@ -94,7 +117,7 @@ const SentimentGauge = ({ data, symbol }) => {
 
                 <div style={{ textAlign: 'center', marginTop: '-15px' }}>
                     <span style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-dark)' }}>
-                        {(sentimentScore > 0 ? '+' : '') + sentimentScore.toFixed(2)}
+                        {((sentimentScore || 0) > 0 ? '+' : '') + (sentimentScore || 0).toFixed(2)}
                     </span>
                     <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         Sentiment Index (-1.0 to +1.0)
@@ -106,15 +129,15 @@ const SentimentGauge = ({ data, symbol }) => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '15px' }}>
                 <div style={{ backgroundColor: 'rgba(0, 217, 36, 0.08)', padding: '12px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(0, 217, 36, 0.2)' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#00b01d', display: 'block' }}>BULLISH</span>
-                    <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-dark)' }}>{(bullishRatio * 100).toFixed(0)}%</span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-dark)' }}>{((bullishRatio || 0) * 100).toFixed(0)}%</span>
                 </div>
                 <div style={{ backgroundColor: 'rgba(234, 179, 8, 0.08)', padding: '12px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(234, 179, 8, 0.2)' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#ca8a04', display: 'block' }}>NEUTRAL</span>
-                    <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-dark)' }}>{(neutralRatio * 100).toFixed(0)}%</span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-dark)' }}>{((neutralRatio || 0) * 100).toFixed(0)}%</span>
                 </div>
                 <div style={{ backgroundColor: 'rgba(255, 42, 42, 0.08)', padding: '12px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(255, 42, 42, 0.2)' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#dc2626', display: 'block' }}>BEARISH</span>
-                    <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-dark)' }}>{(bearishRatio * 100).toFixed(0)}%</span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-dark)' }}>{((bearishRatio || 0) * 100).toFixed(0)}%</span>
                 </div>
             </div>
 

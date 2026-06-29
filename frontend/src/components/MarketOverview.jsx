@@ -26,17 +26,14 @@ export const MarketOverview = ({ activeSymbol, setActiveSymbol, livePrices, onEx
                 setLoading(true);
                 const quotePromises = TOP_MARKET_TICKERS.map(async (item) => {
                     try {
-                        const [quote, profile] = await Promise.all([
-                            getStockQuote(item.symbol),
-                            getCompanyProfile(item.symbol)
-                        ]);
+                        const quote = await getStockQuote(item.symbol);
                         return {
                             symbol: item.symbol,
-                            name: profile?.name || quote?.companyName || item.defaultName,
+                            name: item.defaultName,
                             currentPrice: quote?.currentPrice || 0,
                             previousClose: quote?.previousClose || 0,
                             change: quote?.change || 0,
-                            changePercent: quote?.changePercent || 0
+                            changePercent: quote?.percentChange || quote?.changePercent || 0
                         };
                     } catch (err) {
                         return {

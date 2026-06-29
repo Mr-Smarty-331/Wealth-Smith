@@ -45,3 +45,10 @@ __pycache__/
 
 # ML Dynamic Output models
 backend/ws-backend/ml_core/models/
+
+# Database files & package installers
+*.db
+*.sqlite
+*.sqlite3
+*.pkg
+

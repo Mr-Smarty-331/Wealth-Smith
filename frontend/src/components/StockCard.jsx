@@ -34,10 +34,10 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
             <div className="stock-card-metrics" style={{ borderTop: 'none', marginTop: '0', paddingTop: '0' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '2rem', fontWeight: '750', color: 'var(--text-dark)' }}>
-                        ${data.currentPrice.toFixed(2)}
+                        ${(data.currentPrice || 0).toFixed(2)}
                     </span>
                     <span className={`stock-metric-val ${isPositive ? 'up' : 'down'}`} style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-                        {isPositive ? '▲' : '▼'} {Math.abs(data.change).toFixed(2)} ({Math.abs(data.changePercent).toFixed(2)}%)
+                        {isPositive ? '▲' : '▼'} {Math.abs(data.change || 0).toFixed(2)} ({Math.abs(data.changePercent || data.percentChange || 0).toFixed(2)}%)
                     </span>
                 </div>
             </div>
@@ -45,22 +45,22 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
             <div className="stock-card-metrics">
                 <div className="stock-metric-col">
                     <span className="stock-metric-label">Open</span>
-                    <span className="stock-metric-val">${data.openPrice.toFixed(2)}</span>
+                    <span className="stock-metric-val">${(data.openPrice || data.open || 0).toFixed(2)}</span>
                 </div>
                 <div className="stock-metric-col">
                     <span className="stock-metric-label">Prev Close</span>
-                    <span className="stock-metric-val">${data.previousClose.toFixed(2)}</span>
+                    <span className="stock-metric-val">${(data.previousClose || 0).toFixed(2)}</span>
                 </div>
             </div>
 
             <div className="stock-card-metrics" style={{ borderTop: 'none', paddingTop: '8px', marginTop: '0' }}>
                 <div className="stock-metric-col">
                     <span className="stock-metric-label">Daily High</span>
-                    <span className="stock-metric-val">${data.highPrice.toFixed(2)}</span>
+                    <span className="stock-metric-val">${(data.highPrice || data.high || 0).toFixed(2)}</span>
                 </div>
                 <div className="stock-metric-col">
                     <span className="stock-metric-label">Daily Low</span>
-                    <span className="stock-metric-val">${data.lowPrice.toFixed(2)}</span>
+                    <span className="stock-metric-val">${(data.lowPrice || data.low || 0).toFixed(2)}</span>
                 </div>
             </div>
 
@@ -95,10 +95,10 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
                     {/* Multimodal Dual-Inference Breakdown Pills */}
                     {data.ts_prediction && (
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-light)' }}>
-                            <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-dark)', textAlign: 'center' }}>
+                            <div style={{ flex: 1, backgroundColor: 'var(--bg-app)', border: '1px solid var(--border-light)', padding: '6px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-dark)', textAlign: 'center' }}>
                                 TS: {data.ts_prediction} ({Math.round((data.ts_confidence || 0.5) * 100)}%)
                             </div>
-                            <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-dark)', textAlign: 'center' }}>
+                            <div style={{ flex: 1, backgroundColor: 'var(--bg-app)', border: '1px solid var(--border-light)', padding: '6px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-dark)', textAlign: 'center' }}>
                                 NLP: {data.nlp_sentiment || 'Neutral'}
                             </div>
                         </div>

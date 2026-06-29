@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../api/config';
 
 const NewsFeedWidget = ({ symbol }) => {
     const [news, setNews] = useState([]);
@@ -10,18 +11,12 @@ const NewsFeedWidget = ({ symbol }) => {
             if (!symbol) return;
             try {
                 setLoading(true);
-                // Fetch live company news from Finnhub API via client proxy or direct endpoint
-                const response = await axios.get(`https://finnhub.io/api/v1/company-news`, {
-                    params: {
-                        symbol: symbol.toUpperCase(),
-                        from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                        to: new Date().toISOString().split('T')[0],
-                        token: 'd8s361hr01qlj6ffrq20d8s361hr01qlj6ffrq2g'
-                    }
+                const response = await axios.get(`${API_BASE_URL}/api/news`, {
+                    params: { symbol: symbol.toUpperCase() }
                 });
                 
                 if (Array.isArray(response.data)) {
-                    setNews(response.data.slice(0, 10)); // Top 10 articles
+                    setNews(response.data);
                 }
                 setLoading(false);
             } catch (err) {

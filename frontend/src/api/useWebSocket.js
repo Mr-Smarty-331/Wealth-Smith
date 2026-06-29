@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
+import { WS_BASE_URL } from './config';
 
-export const useWebSocket = (activeSymbol, onMessageCallback) => {
+export const useWebSocket = (symbolsToTrack = [], onMessageCallback) => {
     const wsRef = useRef(null);
     const [status, setStatus] = useState('connecting'); // 'connecting', 'connected', 'disconnected', 'training'
     const [trainingMessage, setTrainingMessage] = useState('');
     const reconnectDelayRef = useRef(1000); // Start reconnect delay at 1s
-    const prevSymbolRef = useRef(null);
+    const subscribedSymbolsRef = useRef(new Set());
+
+    // Normalize symbols to an array of uppercase strings
+    const symbolsArray = Array.isArray(symbolsToTrack) 
+        ? symbolsToTrack.filter(Boolean).map(s => String(s).toUpperCase().strip ? String(s).toUpperCase().strip() : String(s).toUpperCase().trim())
+        : (symbolsToTrack ? [String(symbolsToTrack).toUpperCase().trim()] : []);
+
+    const symbolsKey = Array.from(new Set(symbolsArray)).sort().join(',');
 
     const connect = () => {
-        const url = 'ws://localhost:8000/ws/predict';
+        const url = `${WS_BASE_URL}/ws/predict`;
         console.log(`Connecting to WebSocket at ${url}...`);
         
         const ws = new WebSocket(url);
@@ -17,21 +25,22 @@ export const useWebSocket = (activeSymbol, onMessageCallback) => {
         ws.onopen = () => {
             console.log('WebSocket connection established.');
             setStatus('connected');
-            reconnectDelayRef.current = 1000; // Reset reconnect delay on success
+            reconnectDelayRef.current = 1000;
+            subscribedSymbolsRef.current.clear();
             
-            // Subscribe to activeSymbol
-            if (activeSymbol) {
-                ws.send(JSON.stringify({ action: 'subscribe', ticker: activeSymbol }));
-                prevSymbolRef.current = activeSymbol;
-            }
+            // Subscribe to all current symbols
+            const uniqueSymbols = Array.from(new Set(symbolsArray));
+            uniqueSymbols.forEach(symbol => {
+                ws.send(JSON.stringify({ action: 'subscribe', ticker: symbol }));
+                subscribedSymbolsRef.current.add(symbol);
+            });
         };
 
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log('WebSocket received message:', data);
                 
-                // Handle local status updates from the backend (e.g. training triggers)
+                // Handle local status updates from the backend
                 if (data.type === 'status') {
                     if (data.status === 'training') {
                         setStatus('training');
@@ -82,21 +91,28 @@ export const useWebSocket = (activeSymbol, onMessageCallback) => {
         };
     }, []);
 
-    // Handle active symbol change
+    // Synchronize dynamic symbol additions and removals
     useEffect(() => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            // Unsubscribe from previous symbol
-            if (prevSymbolRef.current && prevSymbolRef.current !== activeSymbol) {
-                wsRef.current.send(JSON.stringify({ action: 'unsubscribe', ticker: prevSymbolRef.current }));
-            }
+            const desiredSet = new Set(symbolsArray);
             
-            // Subscribe to new symbol
-            if (activeSymbol) {
-                wsRef.current.send(JSON.stringify({ action: 'subscribe', ticker: activeSymbol }));
-                prevSymbolRef.current = activeSymbol;
-            }
+            // Unsubscribe removed symbols
+            subscribedSymbolsRef.current.forEach(symbol => {
+                if (!desiredSet.has(symbol)) {
+                    wsRef.current.send(JSON.stringify({ action: 'unsubscribe', ticker: symbol }));
+                    subscribedSymbolsRef.current.delete(symbol);
+                }
+            });
+            
+            // Subscribe newly added symbols
+            desiredSet.forEach(symbol => {
+                if (!subscribedSymbolsRef.current.has(symbol)) {
+                    wsRef.current.send(JSON.stringify({ action: 'subscribe', ticker: symbol }));
+                    subscribedSymbolsRef.current.add(symbol);
+                }
+            });
         }
-    }, [activeSymbol]);
+    }, [symbolsKey]);
 
     return { status, trainingMessage };
 };

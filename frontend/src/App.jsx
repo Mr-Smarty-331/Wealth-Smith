@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import StockCard from './components/StockCard';
 import { getStockQuote, getHistoricalData, getCompanyProfile } from './api/stockService';
 import LineChart from './components/LineChart';
@@ -6,8 +6,11 @@ import Portfolio from './components/Portfolio';
 import MarketOverview from './components/MarketOverview';
 import SentimentGauge from './components/SentimentGauge';
 import NewsFeedWidget from './components/NewsFeedWidget';
+import AuthModal from './components/AuthModal';
 import { calculatePortfolioMetrics } from './utils/portfolioMath';
 import useWebSocket from './api/useWebSocket';
+import { API_BASE_URL } from './api/config';
+import axios from 'axios';
 import './index.css';
 
 // Clean SVG Icon Components to replace emojis
@@ -130,7 +133,17 @@ function App() {
     }
   }, [isDarkMode]);
 
-  // Persistent cash and holdings state with localStorage
+  // User authentication session state
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('wealth_smith_token') || '');
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('wealth_smith_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+
+  // Persistent cash and holdings state with localStorage fallback
   const [cash, setCash] = useState(() => {
     const saved = localStorage.getItem('wealth_smith_cash');
     return saved !== null ? Number(saved) : 100000;
@@ -139,6 +152,44 @@ function App() {
     const saved = localStorage.getItem('wealth_smith_holdings');
     return saved !== null ? JSON.parse(saved) : [];
   });
+
+  // Fetch persistent backend portfolio and transactions if logged in
+  const fetchUserTransactions = useCallback(async () => {
+    if (authToken) {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/transactions`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (Array.isArray(res.data)) {
+          setTransactions(res.data);
+        }
+      } catch (err) {
+        console.error("Error fetching user transactions:", err);
+      }
+    } else {
+      setTransactions([]);
+    }
+  }, [authToken]);
+
+  useEffect(() => {
+    const fetchUserPortfolio = async () => {
+      if (authToken) {
+        try {
+          const res = await axios.get(`${API_BASE_URL}/api/portfolio`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+          });
+          if (res.data) {
+            setCash(res.data.cash);
+            setHoldings(res.data.holdings);
+          }
+        } catch (err) {
+          console.error("Error fetching user portfolio from database:", err);
+        }
+      }
+    };
+    fetchUserPortfolio();
+    fetchUserTransactions();
+  }, [authToken, fetchUserTransactions]);
 
   // Track live prices map and predictions map in state
   const [livePrices, setLivePrices] = useState({});
@@ -156,11 +207,11 @@ function App() {
   // Handle incoming live tick updates and prediction results from local server WebSocket
   const handleWebSocketMessage = useCallback((data) => {
     if (data.type === 'live_update') {
-      const { 
+      const {
         ticker, price, prediction, signal, confidence_up, confidence, accuracy_metrics,
-        ts_prediction, ts_confidence, nlp_sentiment, nlp_confidence, ultimate_score, final_decision, news_sentiment 
+        ts_prediction, ts_confidence, nlp_sentiment, nlp_confidence, ultimate_score, final_decision, news_sentiment
       } = data;
-      
+
       // Update livePrices cache
       setLivePrices(prev => ({
         ...prev,
@@ -185,7 +236,7 @@ function App() {
           news_sentiment
         }
       }));
-      
+
       // Sync values back to comparison cards state
       setStockData1(prev => {
         if (prev && prev.symbol === ticker) {
@@ -238,18 +289,51 @@ function App() {
         }
         return prev;
       });
+
+      setActiveStockQuoteData(prev => {
+        if (prev && prev.symbol === ticker) {
+          const change = price - prev.previousClose;
+          const changePercent = (change / prev.previousClose) * 100;
+          return {
+            ...prev,
+            currentPrice: price,
+            change,
+            changePercent,
+            prediction: prediction || final_decision,
+            signal: signal || (final_decision === 'UP' ? 'BUY' : 'SELL'),
+            confidence_up,
+            confidence,
+            accuracyMetrics: accuracy_metrics,
+            ts_prediction,
+            ts_confidence,
+            nlp_sentiment,
+            nlp_confidence,
+            ultimate_score,
+            final_decision,
+            news_sentiment
+          };
+        }
+        return prev;
+      });
     }
   }, []);
-
-  const { status: wsStatus, trainingMessage } = useWebSocket(activeSymbol, handleWebSocketMessage);
-
-  // Search Bar State
-  const [headerSearchQuery, setHeaderSearchQuery] = useState('');
-  const [activeStockQuoteData, setActiveStockQuoteData] = useState(null);
 
   // Comparison form inputs
   const [inputSymbol1, setInputSymbol1] = useState('AAPL');
   const [inputSymbol2, setInputSymbol2] = useState('MSFT');
+
+  // Compute all symbols to track live via WebSocket
+  const symbolsToTrack = useMemo(() => {
+    const defaultWatchlist = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'V'];
+    const holdingTickers = holdings.map(h => h.ticker);
+    return Array.from(new Set([...defaultWatchlist, ...holdingTickers, activeSymbol, inputSymbol1, inputSymbol2].filter(Boolean)));
+  }, [holdings, activeSymbol, inputSymbol1, inputSymbol2]);
+
+  const { status: wsStatus, trainingMessage } = useWebSocket(symbolsToTrack, handleWebSocketMessage);
+
+  // Search Bar State
+  const [headerSearchQuery, setHeaderSearchQuery] = useState('');
+  const [activeStockQuoteData, setActiveStockQuoteData] = useState(null);
 
   // Timeframe filter state
   const [activeTimeframe, setActiveTimeframe] = useState('6 Months');
@@ -258,7 +342,7 @@ function App() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const [q1, q2, p1, p2, h1, h2] = await Promise.all([
         getStockQuote(inputSymbol1),
         getStockQuote(inputSymbol2),
@@ -358,17 +442,17 @@ function App() {
     const ticker = stockData.symbol;
     const livePrice = livePrices[ticker];
     const pred = predictions[ticker];
-    
+
     let currentPrice = stockData.currentPrice;
     let change = stockData.change;
     let changePercent = stockData.changePercent;
-    
+
     if (livePrice && livePrice !== stockData.currentPrice) {
       currentPrice = livePrice;
       change = livePrice - stockData.previousClose;
       changePercent = (change / stockData.previousClose) * 100;
     }
-    
+
     return {
       ...stockData,
       currentPrice,
@@ -405,50 +489,36 @@ function App() {
   const isTrendUp = activeStockQuote ? activeStockQuote.change >= 0 : true;
 
   // Handle stock trading: buy and sell
-  const handleExecuteTrade = (action, ticker, shares, price) => {
+  const handleExecuteTrade = async (action, ticker, shares, price) => {
     const symbol = ticker.toUpperCase();
     const qty = Number(shares);
     const cost = qty * price;
 
-    if (action === 'BUY') {
-      if (cost > cash) {
-        alert(`Insufficient cash balance! Purchase cost ($${cost.toLocaleString()}) exceeds remaining cash ($${cash.toLocaleString()}).`);
-        return false;
-      }
-      
-      setCash(prev => prev - cost);
-      setHoldings(prevHoldings => {
-        const existing = prevHoldings.find(h => h.ticker === symbol);
-        if (existing) {
-          const totalShares = existing.shares + qty;
-          const avgPrice = ((existing.shares * existing.buyPrice) + (qty * price)) / totalShares;
-          return prevHoldings.map(h => 
-            h.ticker === symbol 
-              ? { ...h, shares: totalShares, buyPrice: Number(avgPrice.toFixed(2)) }
-              : h
-          );
-        } else {
-          return [...prevHoldings, { ticker: symbol, shares: qty, buyPrice: price }];
-        }
-      });
-      return true;
-    } else if (action === 'SELL') {
-      const existing = holdings.find(h => h.ticker === symbol);
-      if (!existing || existing.shares < qty) {
-        alert(`You do not own enough shares of ${symbol} to sell! Owned: ${existing ? existing.shares : 0}, trying to sell: ${qty}.`);
-        return false;
-      }
+    // Strictly enforce sign-in before executing any financial transaction activity
+    if (!authToken) {
+      alert("Please sign in or create an account to execute financial transactions.");
+      setIsAuthModalOpen(true);
+      return false;
+    }
 
-      setCash(prev => prev + cost);
-      setHoldings(prevHoldings => {
-        return prevHoldings.map(h => {
-          if (h.ticker === symbol) {
-            return { ...h, shares: h.shares - qty };
-          }
-          return h;
-        }).filter(h => h.shares > 0);
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/trades/execute`, {
+        action,
+        symbol,
+        shares: qty,
+        price
+      }, {
+        headers: { Authorization: `Bearer ${authToken}` }
       });
-      return true;
+      if (res.data && res.data.status === 'success') {
+        setCash(res.data.cash);
+        setHoldings(res.data.holdings);
+        fetchUserTransactions();
+        return true;
+      }
+    } catch (err) {
+      alert(err.response?.data?.detail || "Trade execution failed.");
+      return false;
     }
     return false;
   };
@@ -484,9 +554,9 @@ function App() {
       <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
         {/* Fixed Top Segment */}
         <div className="sidebar-top">
-          <div 
-            className="logo-container" 
-            onClick={() => setIsCollapsed(!isCollapsed)} 
+          <div
+            className="logo-container"
+            onClick={() => setIsCollapsed(!isCollapsed)}
             style={{ cursor: 'pointer', userSelect: 'none' }}
             title={isCollapsed ? "Click to Expand Sidebar" : "Click to Collapse Sidebar"}
           >
@@ -514,39 +584,39 @@ function App() {
 
         {/* Scrollable Middle Segment */}
         <nav className="sidebar-menu">
-          <a 
+          <a
             className={`sidebar-menu-item ${activeTab === 'market' ? 'active' : ''}`}
             onClick={() => setActiveTab('market')}
           >
             <span className="flex-align-center" style={{ gap: '10px' }}>
-              <MarketsIcon /> 
-              {!isCollapsed && <span>Market Overview</span>}
+              <MarketsIcon />
+              {!isCollapsed && <span>My Portfolio</span>}
             </span>
           </a>
-          <a 
+          <a
             className={`sidebar-menu-item ${activeTab === 'compare' ? 'active' : ''}`}
             onClick={() => setActiveTab('compare')}
           >
             <span className="flex-align-center" style={{ gap: '10px' }}>
-              <CompareIcon /> 
+              <CompareIcon />
               {!isCollapsed && <span>Stock Comparison</span>}
             </span>
           </a>
-          <a 
+          <a
             className={`sidebar-menu-item ${activeTab === 'prediction' ? 'active' : ''}`}
             onClick={() => setActiveTab('prediction')}
           >
             <span className="flex-align-center" style={{ gap: '10px' }}>
-              <SummaryIcon /> 
+              <SummaryIcon />
               {!isCollapsed && <span>AI Price Prediction</span>}
             </span>
           </a>
-          <a 
+          <a
             className={`sidebar-menu-item ${activeTab === 'sentiment' ? 'active' : ''}`}
             onClick={() => setActiveTab('sentiment')}
           >
             <span className="flex-align-center" style={{ gap: '10px' }}>
-              <SentimentIcon /> 
+              <SentimentIcon />
               {!isCollapsed && <span>Sentiment Tracker</span>}
             </span>
           </a>
@@ -555,44 +625,34 @@ function App() {
 
         {/* Fixed Bottom Segment */}
         <div className="sidebar-footer">
-          <a className="sidebar-menu-item">
+          <a className="sidebar-menu-item" style={{ cursor: 'pointer' }} onClick={() => setIsInboxOpen(true)}>
             <span className="flex-align-center" style={{ width: '100%', justifyContent: isCollapsed ? 'center' : 'space-between' }}>
               <span className="flex-align-center" style={{ gap: '10px' }}>
-                <InboxIcon /> 
-                {!isCollapsed && <span>Inbox</span>}
+                <InboxIcon />
+                {!isCollapsed && <span>Inbox (Trade Logs)</span>}
               </span>
               {!isCollapsed && (
-                <span style={{ background: '#c4ff00', color: '#121212', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 'bold' }}>6</span>
+                <span style={{ background: '#c4ff00', color: '#121212', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                  {transactions.length}
+                </span>
               )}
-            </span>
-          </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}>
-              <SettingsIcon /> 
-              {!isCollapsed && <span>Settings</span>}
-            </span>
-          </a>
-          <a className="sidebar-menu-item">
-            <span className="flex-align-center" style={{ gap: '10px' }}>
-              <HelpIcon /> 
-              {!isCollapsed && <span>Help</span>}
             </span>
           </a>
           <div className="sidebar-menu-item" style={{ cursor: 'pointer' }} onClick={() => setIsDarkMode(prev => !prev)}>
             <span className="flex-align-center" style={{ width: '100%', justifyContent: isCollapsed ? 'center' : 'space-between' }}>
               <span className="flex-align-center" style={{ gap: '10px' }}>
-                <MoonIcon /> 
+                <MoonIcon />
                 {!isCollapsed && <span>Dark Mode</span>}
               </span>
               {!isCollapsed && (
-                <input 
-                  type="checkbox" 
-                  checked={isDarkMode} 
+                <input
+                  type="checkbox"
+                  checked={isDarkMode}
                   onChange={(e) => {
                     e.stopPropagation();
                     setIsDarkMode(e.target.checked);
-                  }} 
-                  style={{ cursor: 'pointer' }} 
+                  }}
+                  style={{ cursor: 'pointer' }}
                 />
               )}
             </span>
@@ -606,38 +666,62 @@ function App() {
         <header className="dashboard-header">
           <form onSubmit={handleHeaderSearch} className="header-search">
             <span className="header-search-icon" style={{ zIndex: 1 }}><SearchIcon /></span>
-            <input 
-              type="text" 
-              placeholder="Search any ticker (e.g. TSLA, NVDA, AAPL)..." 
+            <input
+              type="text"
+              placeholder="Search any ticker (e.g. TSLA, NVDA, AAPL)..."
               value={headerSearchQuery}
               onChange={(e) => setHeaderSearchQuery(e.target.value)}
             />
             <button type="submit" style={{ display: 'none' }}>Search</button>
           </form>
-          
+
           <div className="header-actions">
             <button className="notification-btn"><BellIcon /></button>
-            <div className="profile-widget">
-              <UserAvatar />
-              <span className="profile-name" style={{ marginLeft: '8px' }}>FinBro</span>
-            </div>
+
+            {currentUser ? (
+              <div className="profile-widget" style={{ cursor: 'pointer' }} onClick={() => {
+                if (window.confirm("Do you want to log out of Wealth Smith?")) {
+                  localStorage.removeItem('wealth_smith_token');
+                  localStorage.removeItem('wealth_smith_user');
+                  setAuthToken('');
+                  setCurrentUser(null);
+                  setCash(100000);
+                  setHoldings([]);
+                }
+              }}>
+                <UserAvatar />
+                <span className="profile-name" style={{ marginLeft: '8px' }}>{currentUser.email.split('@')[0]}</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="btn-primary-pill"
+                style={{ padding: '8px 18px', fontSize: '0.85rem', fontWeight: 700 }}
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </header>
+
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onAuthSuccess={(authData) => {
+            setAuthToken(authData.access_token);
+            setCurrentUser(authData.user);
+            localStorage.setItem('wealth_smith_token', authData.access_token);
+            localStorage.setItem('wealth_smith_user', JSON.stringify(authData.user));
+          }}
+        />
 
         {/* Dynamic page contents based on activeTab */}
         {activeTab === 'market' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-            <MarketOverview 
-              activeSymbol={activeSymbol}
-              setActiveSymbol={setActiveSymbol}
+            <Portfolio
+              holdings={holdings}
+              setHoldings={setHoldings}
               livePrices={activePriceMap}
-              onExecuteTrade={handleExecuteTrade}
-            />
-            {/* Show Portfolio summary / Cash cards & Table in Market Overview */}
-            <Portfolio 
-              holdings={holdings} 
-              setHoldings={setHoldings} 
-              livePrices={activePriceMap} 
               cash={cash}
               setCash={setCash}
               onExecuteTrade={handleExecuteTrade}
@@ -656,12 +740,12 @@ function App() {
               <form onSubmit={handleCompare} className="compare-inputs-row">
                 <div className="compare-input-wrapper">
                   <span className="input-label-tag">1st Stock</span>
-                  <input 
-                    type="text" 
-                    className="stock-input-field" 
-                    value={inputSymbol1} 
-                    onChange={(e) => setInputSymbol1(e.target.value)} 
-                    required 
+                  <input
+                    type="text"
+                    className="stock-input-field"
+                    value={inputSymbol1}
+                    onChange={(e) => setInputSymbol1(e.target.value)}
+                    required
                   />
                   {name1 && (
                     <span className="resolved-stock-name">{name1}</span>
@@ -670,12 +754,12 @@ function App() {
                 </div>
                 <div className="compare-input-wrapper">
                   <span className="input-label-tag">2nd Stock</span>
-                  <input 
-                    type="text" 
-                    className="stock-input-field" 
-                    value={inputSymbol2} 
-                    onChange={(e) => setInputSymbol2(e.target.value)} 
-                    required 
+                  <input
+                    type="text"
+                    className="stock-input-field"
+                    value={inputSymbol2}
+                    onChange={(e) => setInputSymbol2(e.target.value)}
+                    required
                   />
                   {name2 && (
                     <span className="resolved-stock-name">{name2}</span>
@@ -696,18 +780,18 @@ function App() {
             {/* Stock Overview Cards Grid */}
             <div className="overview-grid">
               {stockData1 && (
-                <StockCard 
-                  data={getEnrichedStockData(stockData1)} 
+                <StockCard
+                  data={getEnrichedStockData(stockData1)}
                   companyName={name1}
-                  onClick={() => setActiveSymbol(stockData1.symbol)} 
+                  onClick={() => setActiveSymbol(stockData1.symbol)}
                   isActive={activeSymbol === stockData1.symbol}
                 />
               )}
               {stockData2 && (
-                <StockCard 
-                  data={getEnrichedStockData(stockData2)} 
+                <StockCard
+                  data={getEnrichedStockData(stockData2)}
                   companyName={name2}
-                  onClick={() => setActiveSymbol(stockData2.symbol)} 
+                  onClick={() => setActiveSymbol(stockData2.symbol)}
                   isActive={activeSymbol === stockData2.symbol}
                 />
               )}
@@ -777,9 +861,9 @@ function App() {
                     <span style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>Historical Price Chart ({activeSymbol})</span>
                     {activeStockQuote && (
                       <>
-                        <span className="chart-price" style={{ marginLeft: '10px' }}>${activeStockQuote.currentPrice.toFixed(2)}</span>
+                        <span className="chart-price" style={{ marginLeft: '10px' }}>${(activeStockQuote.currentPrice || 0).toFixed(2)}</span>
                         <span className={`chart-change ${isTrendUp ? 'up' : 'down'}`} style={{ marginLeft: '10px' }}>
-                          {isTrendUp ? '+' : ''}{activeStockQuote.changePercent}%
+                          {isTrendUp ? '+' : ''}{activeStockQuote.percentChange || activeStockQuote.changePercent || 0}%
                         </span>
                       </>
                     )}
@@ -788,8 +872,8 @@ function App() {
                   {/* Timeframe Filter Tabs */}
                   <div className="time-tabs">
                     {['1 Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', '2 Years'].map((tab) => (
-                      <button 
-                        key={tab} 
+                      <button
+                        key={tab}
                         className={`time-tab-btn ${activeTimeframe === tab ? 'active' : ''}`}
                         onClick={() => setActiveTimeframe(tab)}
                       >
@@ -806,8 +890,8 @@ function App() {
 
               {/* StockCard showing live quote and AI prediction */}
               {activeStockQuote && (
-                <StockCard 
-                  data={activeStockQuote} 
+                <StockCard
+                  data={activeStockQuote}
                   companyName={activeSymbol === stockData2?.symbol ? name2 : name1}
                   isActive={true}
                 />
@@ -815,10 +899,10 @@ function App() {
             </div>
 
             {/* Trading Simulator */}
-            <Portfolio 
-              holdings={holdings} 
-              setHoldings={setHoldings} 
-              livePrices={activePriceMap} 
+            <Portfolio
+              holdings={holdings}
+              setHoldings={setHoldings}
+              livePrices={activePriceMap}
               cash={cash}
               setCash={setCash}
               onExecuteTrade={handleExecuteTrade}
@@ -838,6 +922,76 @@ function App() {
         )}
 
       </main>
+
+      {/* --- INBOX (TRADE AUDIT LOGS) MODAL --- */}
+      {isInboxOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }} onClick={() => setIsInboxOpen(false)}>
+          <div style={{
+            backgroundColor: '#161920', border: '1px solid #262a34', borderRadius: '24px',
+            width: '90%', maxWidth: '700px', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+            overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              padding: '20px 24px', borderBottom: '1px solid #262a34', display: 'flex',
+              alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1b1f28'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ color: '#c4ff00' }}><InboxIcon /></div>
+                <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.2rem', fontWeight: '600' }}>
+                  Inbox — Executed Trade Logs
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsInboxOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.5rem', cursor: 'pointer' }}
+              >×</button>
+            </div>
+
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+              {transactions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af' }}>
+                  <p style={{ fontSize: '1.1rem', marginBottom: '8px' }}>No executed trades logged yet.</p>
+                  <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>Execute buy or sell orders in the Trading Simulator to view persistent audit records.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {transactions.map((t, idx) => (
+                    <div key={t.id || idx} style={{
+                      backgroundColor: '#1e222d', border: '1px solid #2a2f3d', borderRadius: '16px',
+                      padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <span style={{
+                          backgroundColor: t.action === 'BUY' ? 'rgba(196,255,0,0.15)' : 'rgba(255,42,42,0.15)',
+                          color: t.action === 'BUY' ? '#c4ff00' : '#ff2a2a',
+                          border: `1px solid ${t.action === 'BUY' ? '#c4ff00' : '#ff2a2a'}`,
+                          padding: '4px 12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem'
+                        }}>
+                          {t.action}
+                        </span>
+                        <div>
+                          <div style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '1.05rem' }}>{t.ticker}</div>
+                          <div style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
+                            {t.timestamp ? new Date(t.timestamp).toLocaleString() : 'Recent'}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ color: '#ffffff', fontWeight: 'bold' }}>{t.shares} Shares</div>
+                        <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>@ ${Number(t.price).toFixed(2)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

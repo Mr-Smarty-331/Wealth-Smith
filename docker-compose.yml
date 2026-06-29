@@ -1,6 +1,25 @@
 version: '3.8'
 
 services:
+  # Local PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: wealth_smith_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: wealth_smith
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wealth_smith"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # Wealth Smith FastAPI ML & NLP Backend Microservice
   backend:
     build:
@@ -11,7 +30,15 @@ services:
       - "8000:8000"
     environment:
       - PORT=8000
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/wealth_smith
+      - JWT_SECRET=wealth_smith_super_secret_jwt_key_2026
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./backend/ws-backend/ml_core/models:/app/ml_core/models
       - ./backend/ws-backend/ml_core/nlp_engine/sentiment_model.h5:/app/ml_core/nlp_engine/sentiment_model.h5
+
+volumes:
+  postgres_data:

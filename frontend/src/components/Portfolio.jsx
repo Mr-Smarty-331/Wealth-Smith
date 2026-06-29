@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { calculatePortfolioMetrics } from '../utils/portfolioMath';
 import { getStockQuote } from '../api/stockService';
 
-const Portfolio = ({ 
-    holdings, 
-    setHoldings, 
-    livePrices, 
-    cash, 
-    setCash, 
-    onExecuteTrade, 
-    startingCash = 100000, 
-    activeSymbol, 
-    setActiveSymbol 
+const Portfolio = ({
+    holdings,
+    setHoldings,
+    livePrices,
+    cash,
+    setCash,
+    onExecuteTrade,
+    startingCash = 100000,
+    activeSymbol,
+    setActiveSymbol
 }) => {
     const [action, setAction] = useState('BUY'); // 'BUY' or 'SELL'
     const [tradeTicker, setTradeTicker] = useState(activeSymbol || '');
@@ -75,7 +75,7 @@ const Portfolio = ({
         }
     };
 
-    const handleTradeSubmit = (e) => {
+    const handleTradeSubmit = async (e) => {
         e.preventDefault();
         const symbol = tradeTicker.toUpperCase().trim();
         const sharesVal = Number(tradeShares);
@@ -85,7 +85,7 @@ const Portfolio = ({
             return;
         }
 
-        const success = onExecuteTrade(action, symbol, sharesVal, price);
+        const success = await onExecuteTrade(action, symbol, sharesVal, price);
         if (success) {
             setTradeShares('');
         }
@@ -110,9 +110,9 @@ const Portfolio = ({
         <div className="portfolio-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                 <h2 className="section-title" style={{ marginBottom: 0 }}>My Portfolio</h2>
-                <button 
-                    onClick={handleResetSimulation} 
-                    className="btn-black-pill" 
+                <button
+                    onClick={handleResetSimulation}
+                    className="btn-black-pill"
                     style={{ fontSize: '0.8rem', padding: '8px 16px', opacity: 0.8 }}
                 >
                     Reset Simulation
@@ -148,15 +148,15 @@ const Portfolio = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Simulated Trade Panel</h3>
                     <div className="segmented-control" style={{ marginBottom: 0 }}>
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             className={`segmented-btn ${action === 'BUY' ? 'active buy' : ''}`}
                             onClick={() => setAction('BUY')}
                         >
                             BUY
                         </button>
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             className={`segmented-btn ${action === 'SELL' ? 'active sell' : ''}`}
                             onClick={() => setAction('SELL')}
                         >
@@ -185,7 +185,8 @@ const Portfolio = ({
                                         fontSize: '0.95rem',
                                         outline: 'none',
                                         fontWeight: 600,
-                                        textTransform: 'uppercase'
+                                        textTransform: 'uppercase',
+                                        color: 'var(--text-dark)'
                                     }}
                                     required
                                 />
@@ -211,7 +212,8 @@ const Portfolio = ({
                                     backgroundColor: 'var(--bg-app)',
                                     fontSize: '0.95rem',
                                     outline: 'none',
-                                    fontWeight: 600
+                                    fontWeight: 600,
+                                    color: 'var(--text-dark)'
                                 }}
                                 required
                             />
@@ -239,7 +241,7 @@ const Portfolio = ({
                                 Available to {action === 'BUY' ? 'Spend' : 'Sell'}
                             </span>
                             <span style={{ fontWeight: 700 }}>
-                                {action === 'BUY' 
+                                {action === 'BUY'
                                     ? `$${cash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                     : `${ownedShares} shares owned`
                                 }
@@ -255,8 +257,8 @@ const Portfolio = ({
                         </div>
                     </div>
 
-                    <button 
-                        type="submit" 
+                    <button
+                        type="submit"
                         className="btn-primary-pill"
                         style={{
                             padding: '14px',
@@ -302,8 +304,8 @@ const Portfolio = ({
                             return (
                                 <tr key={index}>
                                     <td>
-                                        <span 
-                                            className="table-asset-tag" 
+                                        <span
+                                            className="table-asset-tag"
                                             style={{ cursor: 'pointer' }}
                                             onClick={() => setActiveSymbol(stock.ticker)}
                                             title="Click to view chart"
@@ -320,22 +322,22 @@ const Portfolio = ({
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', gap: '8px' }}>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     setActiveSymbol(stock.ticker);
                                                     setAction('BUY');
-                                                }} 
-                                                className="btn-primary-pill" 
+                                                }}
+                                                className="btn-primary-pill"
                                                 style={{ padding: '6px 12px', fontSize: '0.75rem', fontWeight: 700 }}
                                             >
                                                 Buy More
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     setActiveSymbol(stock.ticker);
                                                     setAction('SELL');
-                                                }} 
-                                                className="btn-danger-pill" 
+                                                }}
+                                                className="btn-danger-pill"
                                                 style={{ padding: '6px 12px', fontSize: '0.75rem', fontWeight: 700 }}
                                             >
                                                 Sell

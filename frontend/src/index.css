@@ -86,6 +86,22 @@
   font-weight: 800 !important;
 }
 
+[data-theme="dark"] .stock-ticker,
+[data-theme="dark"] .stock-name,
+[data-theme="dark"] .tile-ticker,
+[data-theme="dark"] .tile-name,
+[data-theme="dark"] .resolved-stock-name,
+[data-theme="dark"] .table-asset-tag,
+[data-theme="dark"] .section-title,
+[data-theme="dark"] .chart-info h3,
+[data-theme="dark"] .chart-price,
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea,
+[data-theme="dark"] .compare-input-wrapper input.stock-input-field {
+  color: var(--text-dark) !important;
+}
+
 * {
   margin: 0;
   padding: 0;
