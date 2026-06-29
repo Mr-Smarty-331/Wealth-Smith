@@ -66,6 +66,14 @@ const MoonIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
 );
 
+const GithubIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+);
+
+const LinkedinIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+);
+
 const WealthSmithLogo = () => (
   <div style={{
     width: '30px',
@@ -657,6 +665,83 @@ function App() {
               )}
             </span>
           </div>
+
+          {/* Creator Watermark Badge */}
+          {!isCollapsed ? (
+            <div style={{
+              marginTop: '12px',
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Project Creator
+              </div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-dark)' }}>
+                Amartya Raj
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <a 
+                  href="https://github.com/Mr-Smarty-331" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    background: 'var(--bg-app)',
+                    color: 'var(--text-dark)',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    border: '1px solid var(--border-light)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <GithubIcon /> GitHub
+                </a>
+                <a 
+                  href="https://www.linkedin.com/in/amartya-raj-ar0331/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    background: '#0077b5',
+                    color: '#ffffff',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <LinkedinIcon /> LinkedIn
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginTop: '12px' }}>
+              <a href="https://github.com/Mr-Smarty-331" target="_blank" rel="noopener noreferrer" title="Amartya Raj GitHub" style={{ color: 'var(--text-dark)' }}>
+                <GithubIcon />
+              </a>
+              <a href="https://www.linkedin.com/in/amartya-raj-ar0331/" target="_blank" rel="noopener noreferrer" title="Amartya Raj LinkedIn" style={{ color: '#0077b5' }}>
+                <LinkedinIcon />
+              </a>
+            </div>
+          )}
         </div>
       </aside>
 
