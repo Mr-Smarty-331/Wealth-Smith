@@ -608,7 +608,7 @@ function App() {
           >
             <span className="flex-align-center" style={{ gap: '10px' }}>
               <SummaryIcon />
-              {!isCollapsed && <span>AI Price Prediction</span>}
+              {!isCollapsed && <span>AI Trade Signal</span>}
             </span>
           </a>
           <a
