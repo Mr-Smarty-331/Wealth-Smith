@@ -43,62 +43,6 @@ graph TD
     end
 ```
 
-### End-to-End Multimodal Processing & Trade Execution Workflow
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Client / Browser
-    participant Auth as Auth & Session Service
-    participant WS as FastAPI WebSocket Multiplexer
-    participant Finnhub as Finnhub WS API
-    participant ML as LSTM Time-Series Classifier
-    participant NLP as TF-IDF NLP Sentiment Engine
-    participant Fusion as Decision Fusion Matrix
-    participant DB as Async ORM Database
-
-    %% Session Setup
-    rect rgb(22, 25, 32)
-        note right of User: 1. Authentication & Session Initialization
-        User->>Auth: POST /api/auth/register or /login
-        Auth->>DB: Verify Credentials / Log OTP
-        DB-->>Auth: User Record Confirmed
-        Auth-->>User: Return Signed JWT Session Token
-    end
-
-    %% Streaming & Data Pipeline
-    rect rgb(27, 31, 40)
-        note right of User: 2. Real-Time Streaming & Feature Preparation
-        User->>WS: Connect /ws/predict (Subscribe Portfolio Tickers)
-        WS->>Finnhub: Subscribe Symbol Channels (e.g. AAPL, NVDA, MSFT)
-        Finnhub-->>WS: Sub-Second Trade Ticks (Price, Volume, Timestamp)
-        WS->>WS: Append to 60-Sample Rolling Feature Buffer
-    end
-
-    %% Dual Inference Execution
-    rect rgb(30, 35, 46)
-        note right of User: 3. Multimodal Dual-Inference Execution
-        par Quantitative Analysis
-            WS->>ML: Pass Scaled 60-Price Window (MinMaxScaler)
-            ML-->>WS: Predict Directional Probability (Sigmoid: UP / DOWN)
-        and Qualitative Sentiment Analysis
-            WS->>NLP: Fetch News & Clean Text (TF-IDF Vectorizer)
-            NLP-->>WS: Compute Softmax Ratios (Bearish, Neutral, Bullish)
-        end
-        WS->>Fusion: Synthesize Technical Target & Net Sentiment Score
-        Fusion-->>WS: Output Unified Execution Signal (BUY/SELL/HOLD + Confidence)
-        WS-->>User: Broadcast Multimodal JSON Payload to Dashboard
-    end
-
-    %% Trade Execution & Audit Logging
-    rect rgb(20, 28, 20)
-        note right of User: 4. Persistent Trade Execution & Audit Logging
-        User->>WS: POST /api/trades/execute (BUY/SELL Order)
-        WS->>DB: Verify Cash Reserves & Calculate Holding Averages
-        DB->>DB: Record Immutable Audit Log in Transaction Table
-        DB-->>User: Return Updated Cash, Holdings & Refresh Inbox
-    end
-```
-
 ### Detailed Execution Workflow Breakdown
 
 The end-to-end operational lifecycle of Wealth Smith AI follows a four-phase execution pipeline designed for high concurrency, low latency, and deterministic decision-making:
