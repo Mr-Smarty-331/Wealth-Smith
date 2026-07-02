@@ -1,3 +1,4 @@
+import os
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional, List
@@ -594,11 +595,8 @@ async def get_stock_sentiment(symbol: str):
 @app.post("/api/auth/register")
 async def register(user_data: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
     from datetime import datetime, timedelta
+    from sqlalchemy.exc import IntegrityError
     try:
-        # Ensure database tables exist before executing queries
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
         # Check if user already exists
         query = select(models.User).where(models.User.email == user_data.email)
         result = await db.execute(query)
@@ -619,7 +617,7 @@ async def register(user_data: schemas.UserCreate, db: AsyncSession = Depends(get
                 await send_otp_email(user_data.email, otp_code)
                 return {
                     "status": "otp_sent",
-                    "message": "Verification code sent to your email.",
+                    "message": "Verification code re-sent to your email.",
                     "email": user_data.email,
                     "dev_otp_code": otp_code
                 }
@@ -646,9 +644,28 @@ async def register(user_data: schemas.UserCreate, db: AsyncSession = Depends(get
         }
     except HTTPException:
         raise
+    except IntegrityError:
+        await db.rollback()
+        logger.warning(f"IntegrityError during registration for {user_data.email} (likely race condition duplicate).")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists. Please sign in instead."
+        )
     except Exception as e:
+        await db.rollback()
         logger.error(f"Error during user registration: {e}")
-        raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Registration failed. Please try again.")
+
+
+def _serialize_user(user: models.User) -> dict:
+    """Convert a SQLAlchemy User ORM instance into a clean dict matching UserResponse schema."""
+    return {
+        "id": user.id,
+        "email": user.email,
+        "cash_balance": user.cash_balance,
+        "is_verified": user.is_verified,
+        "created_at": user.created_at
+    }
 
 
 @app.post("/api/auth/verify-otp", response_model=schemas.Token)
@@ -659,17 +676,17 @@ async def verify_otp(payload: schemas.VerifyOTP, db: AsyncSession = Depends(get_
     user = result.scalars().first()
     
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User account not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User account not found. Please register first.")
         
     if user.is_verified:
         access_token = auth.create_access_token(data={"sub": user.email})
-        return {"access_token": access_token, "token_type": "bearer", "user": user}
+        return {"access_token": access_token, "token_type": "bearer", "user": _serialize_user(user)}
         
     if user.otp_code != payload.otp_code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification code. Please check your email.")
         
     if user.otp_expires_at and datetime.utcnow() > user.otp_expires_at:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification code has expired. Please request a new code.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification code has expired. Please register again to get a new code.")
         
     user.is_verified = True
     user.otp_code = None
@@ -678,7 +695,7 @@ async def verify_otp(payload: schemas.VerifyOTP, db: AsyncSession = Depends(get_
     await db.refresh(user)
     
     access_token = auth.create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer", "user": user}
+    return {"access_token": access_token, "token_type": "bearer", "user": _serialize_user(user)}
 
 
 @app.post("/api/auth/login", response_model=schemas.Token)
@@ -700,14 +717,14 @@ async def login(
     if not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your email address has not been verified. Please complete verification."
+            detail="Your email address has not been verified. Please register again to get a new verification code."
         )
         
     access_token = auth.create_access_token(data={"sub": user.email})
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": _serialize_user(user)
     }
 
 

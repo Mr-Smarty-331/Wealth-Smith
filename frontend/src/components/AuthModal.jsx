@@ -18,10 +18,19 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
         e.preventDefault();
         setError('');
         setInfoMessage('');
+
+        // Frontend password validation before hitting the server
+        if (!isLogin && step === 'credentials' && password.length < 6) {
+            setError('Password must be at least 6 characters long.');
+            return;
+        }
+
         setLoading(true);
 
         // Ensure backend IP is resolved before firing auth requests
         await hostReady;
+
+        const axiosConfig = { timeout: 15000 }; // 15-second timeout
 
         try {
             if (step === 'otp') {
@@ -29,10 +38,12 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
                 const res = await axios.post(`${API_BASE_URL}/api/auth/verify-otp`, {
                     email,
                     otp_code: otpCode
-                });
-                if (res.data && res.data.access_token) {
+                }, axiosConfig);
+                if (res.data && res.data.access_token && res.data.user) {
                     onAuthSuccess(res.data);
                     onClose();
+                } else {
+                    setError('Verification succeeded but received an incomplete response. Please try signing in.');
                 }
             } else if (isLogin) {
                 // Sign in existing user to create secure active session
@@ -41,16 +52,21 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
                 params.append('password', password);
 
                 const res = await axios.post(`${API_BASE_URL}/api/auth/login`, params, {
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    ...axiosConfig
                 });
-                onAuthSuccess(res.data);
-                onClose();
+                if (res.data && res.data.access_token && res.data.user) {
+                    onAuthSuccess(res.data);
+                    onClose();
+                } else {
+                    setError('Sign-in succeeded but received an incomplete response. Please try again.');
+                }
             } else {
                 // Register new user database entry & send verification OTP
                 const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
                     email,
                     password
-                });
+                }, axiosConfig);
                 if (res.data && res.data.status === 'otp_sent') {
                     setStep('otp');
                     if (res.data.dev_otp_code) {
@@ -59,13 +75,20 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
                     } else {
                         setInfoMessage(`Verification code sent to ${email}. Please check your inbox.`);
                     }
+                } else {
+                    setError('Registration request completed but no verification code was generated. Please try again.');
                 }
             }
         } catch (err) {
-            const msg = typeof err.response?.data?.detail === 'string'
-                ? err.response.data.detail
-                : (err.message || "Operation failed. Please check your credentials.");
-            setError(msg);
+            if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+                setError('Server is not responding. Please check your connection and try again.');
+            } else {
+                const detail = err.response?.data?.detail;
+                const msg = typeof detail === 'string'
+                    ? detail
+                    : (err.message || "Operation failed. Please check your credentials.");
+                setError(msg);
+            }
         } finally {
             setLoading(false);
         }
