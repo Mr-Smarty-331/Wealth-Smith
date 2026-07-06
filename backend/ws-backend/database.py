@@ -5,8 +5,8 @@ from sqlalchemy.orm import declarative_base
 
 logger = logging.getLogger("ws-backend")
 
-# Always default to rock-solid async SQLite storage inside container
-DATABASE_URL = "sqlite+aiosqlite:///wealth_smith_local.db"
+# Read from AWS environment variable if available, fallback to local SQLite
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///wealth_smith_local.db")
 engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 
 AsyncSessionLocal = async_sessionmaker(
