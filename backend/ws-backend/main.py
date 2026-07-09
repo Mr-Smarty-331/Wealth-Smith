@@ -22,11 +22,11 @@ import schemas
 import auth
 from email_service import generate_otp, send_otp_email
 
-# Set up logging to track connection and data lifecycle events
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ws-backend")
 
-# Global services & managers
+# Global services and managers
 predictor_service = None
 sentiment_analyzer = None
 active_finnhub_ws = None
@@ -46,11 +46,11 @@ def get_sentiment():
         sentiment_analyzer = SentimentAnalyzer()
     return sentiment_analyzer
 
-# Finnhub Credentials & Stream config
+# Finnhub config
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d8s361hr01qlj6ffrq20d8s361hr01qlj6ffrq2g")
 FINNHUB_WS_URL = f"wss://ws.finnhub.io?token={FINNHUB_API_KEY}"
 
-# Subscription tracking & caching
+# Subscriptions & cache
 active_subscribed_tickers = set()  # Set of all tickers requested by any client
 training_tickers = set()          # Set of tickers currently training in the background
 price_buffers = {}                # Rolling last 60 close prices cache: {ticker: list[float]}
@@ -58,9 +58,7 @@ news_sentiment_cache = {}         # Cache for news sentiment: {ticker: {"data": 
 
 
 class ConnectionManager:
-    """
-    Manages active client browser WebSockets and their stock subscriptions.
-    """
+    """Manage client WebSockets and stock subscriptions."""
     def __init__(self):
         self.active_connections: list[WebSocket] = []
         self.client_subscriptions: dict[WebSocket, set[str]] = {}
@@ -83,7 +81,7 @@ class ConnectionManager:
         self.client_subscriptions[websocket].add(ticker)
         logger.info(f"Client subscribed to {ticker}")
         
-        # Check if we need to subscribe to this on the external Finnhub WebSocket
+        # Subscribe to Finnhub if new ticker
         if ticker not in active_subscribed_tickers:
             active_subscribed_tickers.add(ticker)
             if active_finnhub_ws is not None:
@@ -96,7 +94,7 @@ class ConnectionManager:
             self.client_subscriptions[websocket].remove(ticker)
             logger.info(f"Client unsubscribed from {ticker}")
             
-        # If no other active connection is subscribed to this ticker, unsubscribe on Finnhub
+        # Unsubscribe from Finnhub if no active clients need it
         still_subscribed = any(ticker in subs for subs in self.client_subscriptions.values())
         if not still_subscribed and ticker in active_subscribed_tickers:
             active_subscribed_tickers.discard(ticker)
@@ -109,10 +107,7 @@ manager = ConnectionManager()
 
 
 async def seed_price_buffer(ticker: str):
-    """
-    Downloads the last 60 days of historical data from yfinance
-    to seed the rolling prediction sequence.
-    """
+    """Download last 60 close prices to seed prediction sequence."""
     ticker = ticker.upper().strip()
     if ticker in price_buffers:
         return True
@@ -124,7 +119,7 @@ async def seed_price_buffer(ticker: str):
         end_str = datetime.now().strftime("%Y-%m-%d")
         start_str = (datetime.now() - timedelta(days=150)).strftime("%Y-%m-%d")
         
-        # Run historical download in worker thread to prevent ASGI blocking
+        # Run download in worker thread
         df = await asyncio.to_thread(load_historical_data, ticker, start_str, end_str)
         prices = df["Close"].values[-60:]
         price_list = [float(p[0] if isinstance(p, np.ndarray) else p) for p in prices]
@@ -142,16 +137,13 @@ async def seed_price_buffer(ticker: str):
 
 
 async def run_background_training(ticker: str):
-    """
-    Worker task running in the background to fetch yfinance data
-    and train an LSTM classification model for a specific ticker.
-    """
+    """Train LSTM classification model for ticker in background."""
     ticker = ticker.upper().strip()
     logger.info(f"Background training task running for {ticker}")
     
     try:
         from ml_core.train import train_model_for_ticker
-        # Run CPU-heavy LSTM model training in a worker thread to keep ASGI loop free
+        # Run CPU-heavy training in worker thread
         success = await asyncio.to_thread(train_model_for_ticker, ticker)
         if success:
             logger.info(f"Background training for {ticker} finished successfully.")
@@ -165,27 +157,24 @@ async def run_background_training(ticker: str):
 
 
 async def get_cached_news_sentiment(ticker: str) -> dict:
-    """
-    Fetches news headlines for ticker and runs NLP SentimentAnalyzer.
-    Caches results for 5 minutes (300s) to maintain high WebSocket frequency and prevent Finnhub rate limits.
-    """
+    """Fetch news headlines and return cached/fresh sentiment metrics."""
     ticker = ticker.upper().strip()
     current_time = time.time()
     
-    # Check cache validity (300 seconds = 5 mins)
+    # Check 5 min cache validity
     if ticker in news_sentiment_cache:
         cached_entry = news_sentiment_cache[ticker]
         if current_time - cached_entry["timestamp"] < 300:
             return cached_entry["data"]
             
     try:
-        # Fetch news articles asynchronously in worker thread
+        # Fetch headlines in worker thread
         headlines = await asyncio.to_thread(fetch_company_news, ticker, 30, FINNHUB_API_KEY)
         
-        # Run sentiment analysis on fetched headlines using lazy getter
+        # Run sentiment analysis
         sentiment_res = get_sentiment().analyze_headlines(headlines)
         
-        # Store in cache
+        # Save to cache
         news_sentiment_cache[ticker] = {
             "data": sentiment_res,
             "timestamp": current_time
@@ -205,26 +194,22 @@ async def get_cached_news_sentiment(ticker: str) -> dict:
 
 
 def calculate_ultimate_confidence(price_pred: dict, sentiment_pred: dict) -> dict:
-    """
-    Algorithmic Weighting Merge Engine:
-    Combines Time-Series probability (60% weight) and NLP Sentiment score (40% weight)
-    into a unified Ultimate Confidence Score (0.0 to 1.0) and final recommendation decision.
-    """
-    # 1. Extract Time-Series Directional Probability (0.0 to 1.0)
+    """Combine time-series probability (60%) and news sentiment (40%) into one score."""
+    # 1. Get Time-Series probability
     raw_ts_prob = price_pred.get("raw_probability")
     if raw_ts_prob is None:
         raw_ts_prob = price_pred.get("confidence_up", 50.0) / 100.0
     ts_prob = float(np.clip(raw_ts_prob, 0.0, 1.0))
     
-    # 2. Convert NLP Sentiment Score (-1.0 to +1.0) into normalized NLP probability (0.0 to 1.0)
+    # 2. Convert NLP Sentiment Score to 0-1 probability
     sentiment_score = sentiment_pred.get("sentiment_score", 0.0)
     nlp_prob = float(np.clip(0.5 + (0.5 * sentiment_score), 0.0, 1.0))
     
-    # 3. Algorithmic Weighting (60% Time-Series + 40% NLP Sentiment)
+    # 3. Weighted merge
     ultimate_score_raw = (0.60 * ts_prob) + (0.40 * nlp_prob)
     ultimate_score = round(float(ultimate_score_raw), 4)
     
-    # 4. Final Decision & Signal Determination
+    # 4. Determine final signal and confidence
     final_decision = "UP" if ultimate_score >= 0.50 else "DOWN"
     signal = "BUY" if final_decision == "UP" else "SELL"
     confidence_pct = round((ultimate_score if final_decision == "UP" else (1.0 - ultimate_score)) * 100, 2)
@@ -268,16 +253,16 @@ async def handle_finnhub_trade(data: dict):
                 input_sequence = list(buffer[:-1]) + [live_price]
                 
                 try:
-                    # 1. Time-Series Model Inference
+                    # 1. Price prediction
                     clf_res = predictor_service.predict_direction(symbol, input_sequence)
                     
-                    # 2. NLP News Sentiment Analysis Inference (Asynchronous / Cached)
+                    # 2. News sentiment prediction
                     sentiment_res = await get_cached_news_sentiment(symbol)
                     
-                    # 3. Dual-Inference Algorithmic Weighting Convergence
+                    # 3. Combine results
                     merge_res = calculate_ultimate_confidence(clf_res, sentiment_res)
                     
-                    # 4. Construct Multimodal Payload matching exact Phase 03 specifications
+                    # 4. Create payload
                     payload = {
                         "type": "live_update",
                         "ticker": symbol,
@@ -297,7 +282,7 @@ async def handle_finnhub_trade(data: dict):
                         "news_sentiment": sentiment_res
                     }
                     
-                    # Broadcast updates to all subscribed client browser WebSockets
+                    # Broadcast updates to clients
                     for conn, subs in manager.client_subscriptions.items():
                         if symbol in subs:
                             try:
@@ -310,9 +295,7 @@ async def handle_finnhub_trade(data: dict):
 
 
 async def finnhub_listener():
-    """
-    Background loop connecting to Finnhub WebSocket.
-    """
+    """Listen for trade events on Finnhub WebSocket."""
     global active_finnhub_ws
     while True:
         try:
@@ -323,7 +306,7 @@ async def finnhub_listener():
                 
                 for ticker in active_subscribed_tickers:
                     await ws.send(json.dumps({"type": "subscribe", "symbol": ticker}))
-                    logger.info(f"Resubscribed to {ticker} on Finnhub reconnect")
+                    # Resubscribe on reconnect
                     
                 while True:
                     msg = await ws.recv()
@@ -344,10 +327,7 @@ cleanup_task = None
 model_cleanup_task = None
 
 async def cleanup_unverified_accounts():
-    """
-    Background worker running periodically to delete unverified accounts
-    older than 24 hours from PostgreSQL.
-    """
+    """Delete unverified accounts older than 24 hours."""
     from datetime import datetime, timedelta
     from database import AsyncSessionLocal
     from sqlalchemy import delete
@@ -372,9 +352,7 @@ async def cleanup_unverified_accounts():
 
 
 async def periodic_model_cleanup_worker():
-    """
-    Background worker scanning AWS storage once every 12 hours to delete models older than 5 days.
-    """
+    """Clean up old models every 12 hours."""
     from model_storage_service import cleanup_outdated_aws_models
     while True:
         try:
@@ -386,16 +364,12 @@ async def periodic_model_cleanup_worker():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    FastAPI lifespan manager to handle startup and shutdown logic.
-    Loads PredictorService and SentimentAnalyzer into memory once upon startup,
-    initializes database tables, and starts background database and model cleanup workers.
-    """
+    """Handle server startup and shutdown logic."""
     global predictor_service, sentiment_analyzer, finnhub_task, cleanup_task, model_cleanup_task
     import database
     logger.info("Initializing PredictorService and SentimentAnalyzer engines...")
     try:
-        # Create database tables if they do not exist
+        # Create database tables if needed
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables verified/created successfully.")
@@ -403,14 +377,14 @@ async def lifespan(app: FastAPI):
         predictor_service = PredictorService()
         sentiment_analyzer = SentimentAnalyzer()
         
-        # Load any existing models in models/ folder
+        # Load existing models
         DEFAULT_TICKERS = ["AAPL", "MSFT", "TSLA", "NVDA", "META"]
         for ticker in DEFAULT_TICKERS:
             if predictor_service.has_model_files(ticker):
                 predictor_service.load_ticker_model(ticker)
                 logger.info(f"Pre-loaded existing model for {ticker} from disk.")
                 
-        # Start background Finnhub listener, database cleanup, and 5-day model garbage collection
+        # Start background workers
         finnhub_task = asyncio.create_task(finnhub_listener())
         cleanup_task = asyncio.create_task(cleanup_unverified_accounts())
         model_cleanup_task = asyncio.create_task(periodic_model_cleanup_worker())
@@ -419,7 +393,7 @@ async def lifespan(app: FastAPI):
         
     yield
     
-    # Clean up
+    # Cleanup background tasks
     if finnhub_task:
         finnhub_task.cancel()
         await asyncio.gather(finnhub_task, return_exceptions=True)
@@ -439,7 +413,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Configuration
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -451,9 +425,7 @@ app.add_middleware(
 
 @app.get("/")
 def health_check():
-    """
-    Root REST endpoint to verify FastAPI service status.
-    """
+    """Check API health."""
     return {
         "message": "Wealth Smith Multimodal ML Backend is Online",
         "loaded_ts_models": list(predictor_service.models.keys()) if predictor_service else [],
@@ -466,9 +438,7 @@ def health_check():
 
 @app.get("/api/quote")
 async def get_live_stock_quote(symbol: str):
-    """
-    Returns real-time stock quote via yfinance for backend proxying.
-    """
+    """Get real-time stock quote from yfinance."""
     import yfinance as yf
     clean_sym = symbol.upper().trim() if hasattr(symbol, 'trim') else symbol.upper().strip()
     try:
@@ -496,9 +466,7 @@ async def get_live_stock_quote(symbol: str):
 
 @app.get("/api/history")
 async def get_historical_chart_data(symbol: str, timeframe: str = "6 Months"):
-    """
-    Returns historical stock price points via yfinance for interactive charts.
-    """
+    """Get historical price points for charts."""
     import yfinance as yf
     clean_sym = symbol.upper().strip()
     period_map = {
@@ -533,9 +501,7 @@ async def get_historical_chart_data(symbol: str, timeframe: str = "6 Months"):
 
 @app.get("/api/news")
 async def get_company_news(symbol: str):
-    """
-    Returns live financial news articles via yfinance.
-    """
+    """Get stock news from yfinance."""
     import yfinance as yf
     clean_sym = symbol.upper().strip()
     try:
@@ -560,9 +526,7 @@ async def get_company_news(symbol: str):
 
 @app.get("/api/profile")
 async def get_company_profile_backend(symbol: str):
-    """
-    Returns company metadata profile cleanly.
-    """
+    """Get company profile info."""
     import yfinance as yf
     clean_sym = symbol.upper().strip()
     try:
@@ -581,23 +545,19 @@ async def get_company_profile_backend(symbol: str):
 
 @app.get("/api/sentiment")
 async def get_stock_sentiment(symbol: str):
-    """
-    Returns NLP Sentiment Analysis results for symbol.
-    """
+    """Get news sentiment metrics."""
     clean_sym = symbol.upper().strip()
     return await get_cached_news_sentiment(clean_sym)
 
 
-# =====================================================================
-# AUTHENTICATION REST API ENDPOINTS
-# =====================================================================
+# Auth REST endpoints
 
 @app.post("/api/auth/register")
 async def register(user_data: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
     from datetime import datetime, timedelta
     from sqlalchemy.exc import IntegrityError
     try:
-        # Check if user already exists
+        # Check if user exists
         query = select(models.User).where(models.User.email == user_data.email)
         result = await db.execute(query)
         existing_user = result.scalars().first()
@@ -608,7 +568,7 @@ async def register(user_data: schemas.UserCreate, db: AsyncSession = Depends(get
                     detail="An account with this email already exists."
                 )
             else:
-                # Re-generate OTP for unverified user
+                # Re-send OTP
                 otp_code = generate_otp()
                 existing_user.password_hash = auth.get_password_hash(user_data.password)
                 existing_user.otp_code = otp_code
@@ -658,7 +618,7 @@ async def register(user_data: schemas.UserCreate, db: AsyncSession = Depends(get
 
 
 def _serialize_user(user: models.User) -> dict:
-    """Convert a SQLAlchemy User ORM instance into a clean dict matching UserResponse schema."""
+    """Convert User ORM instance to a dictionary."""
     return {
         "id": user.id,
         "email": user.email,
@@ -731,9 +691,7 @@ async def login(
 
 
 
-# =====================================================================
-# PERSISTENT PORTFOLIO REST API ENDPOINTS
-# =====================================================================
+# Portfolio REST endpoints
 
 @app.get("/api/portfolio", response_model=schemas.PortfolioResponse)
 async def get_portfolio(
@@ -741,7 +699,7 @@ async def get_portfolio(
     db: AsyncSession = Depends(get_db)
 ):
     if not current_user:
-        # Fallback for unauthenticated guest sessions
+        # Guest fallback
         return {"cash": 100000.0, "holdings": []}
         
     query = select(models.Holding).where(models.Holding.user_id == current_user.id)
@@ -783,7 +741,7 @@ async def execute_trade(
             
         current_user.cash_balance -= cost
         
-        # Check if holding already exists for user
+        # Check if holding exists
         query = select(models.Holding).where(
             models.Holding.user_id == current_user.id,
             models.Holding.ticker == trade.symbol
@@ -830,7 +788,7 @@ async def execute_trade(
             detail="Invalid action. Must be BUY or SELL."
         )
         
-    # Log immutable transaction audit record
+    # Log transaction record
     transaction_record = models.Transaction(
         user_id=current_user.id,
         action=trade.action,
@@ -843,7 +801,7 @@ async def execute_trade(
     await db.commit()
     await db.refresh(current_user)
     
-    # Return updated portfolio summary
+    # Return updated portfolio
     query_holdings = select(models.Holding).where(models.Holding.user_id == current_user.id)
     res_holdings = await db.execute(query_holdings)
     updated_holdings = res_holdings.scalars().all()
@@ -883,10 +841,7 @@ async def get_transactions(
 
 @app.websocket("/ws/predict")
 async def websocket_predict(websocket: WebSocket):
-    """
-    WebSocket endpoint accepting incoming stock subscription requests,
-    executing Dual-Inference analysis, and streaming multimodal updates.
-    """
+    """WebSocket endpoint to stream predictions and updates."""
     await manager.connect(websocket)
     
     try:
@@ -950,7 +905,7 @@ async def websocket_predict(websocket: WebSocket):
                     "message": f"Subscribed to real-time multimodal ML updates for {ticker}"
                 })
 
-                # Push initial multimodal prediction instantly from pre-seeded buffer
+                # Push initial prediction from buffer
                 if ticker in price_buffers:
                     buffer = price_buffers[ticker]
                     last_price = buffer[-1]

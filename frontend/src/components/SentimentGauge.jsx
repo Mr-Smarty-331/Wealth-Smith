@@ -31,10 +31,10 @@ const SentimentGauge = ({ data: propData, symbol }) => {
     const sentimentScore = data?.sentiment_score !== undefined ? data.sentiment_score : 0.0;
     const totalArticles = data?.total_articles || 0;
 
-    // Convert sentiment score (-1.0 to +1.0) to needle angle (-90 to +90 degrees)
+    // Angle conversion
     const angle = Math.max(-90, Math.min(90, sentimentScore * 90));
 
-    // Determine badge theme
+    // Badge style
     let badgeBg = '#f1f3f5';
     let badgeColor = '#121212';
     if (sentiment === 'Bullish') {
@@ -69,10 +69,10 @@ const SentimentGauge = ({ data: propData, symbol }) => {
                 </span>
             </div>
 
-            {/* SVG Speedometer Meter */}
+            {/* Gauge SVG */}
             <div style={{ position: 'relative', width: '100%', maxWidth: '280px', margin: '0 auto 10px auto' }}>
                 <svg viewBox="0 0 200 110" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
-                    {/* Background Gauge Arc */}
+                    {/* Arc */}
                     <path
                         d="M 20 100 A 80 80 0 0 1 180 100"
                         fill="none"
@@ -80,7 +80,7 @@ const SentimentGauge = ({ data: propData, symbol }) => {
                         strokeWidth="18"
                         strokeLinecap="round"
                     />
-                    {/* Bearish Arc Segment */}
+                    {/* Bearish */}
                     <path
                         d="M 20 100 A 80 80 0 0 1 73 43"
                         fill="none"
@@ -88,14 +88,14 @@ const SentimentGauge = ({ data: propData, symbol }) => {
                         strokeWidth="18"
                         strokeLinecap="round"
                     />
-                    {/* Neutral Arc Segment */}
+                    {/* Neutral */}
                     <path
                         d="M 73 43 A 80 80 0 0 1 127 43"
                         fill="none"
                         stroke="#eab308"
                         strokeWidth="18"
                     />
-                    {/* Bullish Arc Segment */}
+                    {/* Bullish */}
                     <path
                         d="M 127 43 A 80 80 0 0 1 180 100"
                         fill="none"
@@ -104,7 +104,7 @@ const SentimentGauge = ({ data: propData, symbol }) => {
                         strokeLinecap="round"
                     />
 
-                    {/* Needle Indicator */}
+                    {/* Needle */}
                     <g transform="translate(100, 100)">
                         <g transform={`rotate(${angle})`}>
                             <line x1="0" y1="0" x2="0" y2="-70" stroke="#121212" strokeWidth="4" strokeLinecap="round" />
@@ -125,7 +125,7 @@ const SentimentGauge = ({ data: propData, symbol }) => {
                 </div>
             </div>
 
-            {/* Sentiment Ratios Breakdown Cards */}
+            {/* Breakdown */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '15px' }}>
                 <div style={{ backgroundColor: 'rgba(0, 217, 36, 0.08)', padding: '12px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(0, 217, 36, 0.2)' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#00b01d', display: 'block' }}>BULLISH</span>

@@ -13,7 +13,7 @@ import { API_BASE_URL } from './api/config';
 import axios from 'axios';
 import './index.css';
 
-// Clean SVG Icon Components to replace emojis
+// SVG Icon Components
 const SearchIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 );
@@ -107,7 +107,7 @@ const ChevronRightIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><polyline points="9 18 15 12 9 6"></polyline></svg>
 );
 
-// Dynamic stock profiles and quotes are fetched directly from Finnhub & Polygon APIs
+// Quotes are fetched from APIs
 
 const STARTING_CASH = 100000;
 
@@ -125,7 +125,7 @@ function App() {
   const [error, setError] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Dark Mode State with localStorage persistence
+  // Dark Mode state
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('wealth_smith_theme');
     return saved === 'dark';
@@ -141,7 +141,7 @@ function App() {
     }
   }, [isDarkMode]);
 
-  // User authentication session state
+  // Auth session
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('wealth_smith_token') || '');
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('wealth_smith_user');
@@ -151,7 +151,7 @@ function App() {
   const [isInboxOpen, setIsInboxOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
 
-  // Persistent cash and holdings state with localStorage fallback
+  // Portfolio state
   const [cash, setCash] = useState(() => {
     const saved = localStorage.getItem('wealth_smith_cash');
     return saved !== null ? Number(saved) : 100000;
@@ -161,7 +161,7 @@ function App() {
     return saved !== null ? JSON.parse(saved) : [];
   });
 
-  // Fetch persistent backend portfolio and transactions if logged in
+  // Fetch backend user data
   const fetchUserTransactions = useCallback(async () => {
     if (authToken) {
       try {
@@ -199,11 +199,11 @@ function App() {
     fetchUserTransactions();
   }, [authToken, fetchUserTransactions]);
 
-  // Track live prices map and predictions map in state
+  // Live prices & predictions state
   const [livePrices, setLivePrices] = useState({});
   const [predictions, setPredictions] = useState({});
 
-  // Sync cash & holdings to localStorage
+  // Save to localStorage
   useEffect(() => {
     localStorage.setItem('wealth_smith_cash', cash.toString());
   }, [cash]);
@@ -212,7 +212,7 @@ function App() {
     localStorage.setItem('wealth_smith_holdings', JSON.stringify(holdings));
   }, [holdings]);
 
-  // Handle incoming live tick updates and prediction results from local server WebSocket
+  // Handle live websocket data
   const handleWebSocketMessage = useCallback((data) => {
     if (data.type === 'live_update') {
       const {
@@ -220,13 +220,13 @@ function App() {
         ts_prediction, ts_confidence, nlp_sentiment, nlp_confidence, ultimate_score, final_decision, news_sentiment
       } = data;
 
-      // Update livePrices cache
+      // Update price cache
       setLivePrices(prev => ({
         ...prev,
         [ticker]: price
       }));
 
-      // Update predictions cache with multimodal details
+      // Update predictions cache
       setPredictions(prev => ({
         ...prev,
         [ticker]: {
@@ -245,7 +245,7 @@ function App() {
         }
       }));
 
-      // Sync values back to comparison cards state
+      // Sync comparison state
       setStockData1(prev => {
         if (prev && prev.symbol === ticker) {
           const change = price - prev.previousClose;
@@ -326,11 +326,11 @@ function App() {
     }
   }, []);
 
-  // Comparison form inputs
+  // Form inputs
   const [inputSymbol1, setInputSymbol1] = useState('AAPL');
   const [inputSymbol2, setInputSymbol2] = useState('MSFT');
 
-  // Compute all symbols to track live via WebSocket
+  // Get trackable symbols
   const symbolsToTrack = useMemo(() => {
     const defaultWatchlist = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'V'];
     const holdingTickers = holdings.map(h => h.ticker);
@@ -339,11 +339,11 @@ function App() {
 
   const { status: wsStatus, trainingMessage } = useWebSocket(symbolsToTrack, handleWebSocketMessage);
 
-  // Search Bar State
+  // Search state
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [activeStockQuoteData, setActiveStockQuoteData] = useState(null);
 
-  // Timeframe filter state
+  // Timeframe state
   const [activeTimeframe, setActiveTimeframe] = useState('6 Months');
 
   const fetchComparisonData = async () => {
@@ -367,7 +367,7 @@ function App() {
       setHistoricalData1(h1);
       setHistoricalData2(h2);
 
-      // Update livePrices cache
+      // Update price cache
       setLivePrices(prev => {
         const next = { ...prev };
         if (q1) next[q1.symbol] = q1.currentPrice;
@@ -385,12 +385,12 @@ function App() {
     }
   };
 
-  // Run on mount to fetch defaults (AAPL vs MSFT)
+  // Load default comparison
   useEffect(() => {
     fetchComparisonData();
   }, []);
 
-  // Fetch stock quote whenever activeSymbol changes to ensure activeStockQuote is accurate
+  // Fetch active stock quote
   useEffect(() => {
     const fetchActiveQuote = async () => {
       if (!activeSymbol) return;
@@ -407,7 +407,7 @@ function App() {
     fetchActiveQuote();
   }, [activeSymbol]);
 
-  // Fetch chart data when activeSymbol or activeTimeframe changes (for AI Prediction tab)
+  // Fetch active chart data
   useEffect(() => {
     const fetchChartData = async () => {
       try {
@@ -426,7 +426,7 @@ function App() {
     fetchChartData();
   }, [activeSymbol, activeTimeframe]);
 
-  // Dynamic effect to re-fetch comparison charts whenever comparative symbols or activeTimeframe changes
+  // Fetch comparison charts
   useEffect(() => {
     const fetchComparisonCharts = async () => {
       if (!stockData1?.symbol || !stockData2?.symbol) return;
@@ -444,7 +444,7 @@ function App() {
     fetchComparisonCharts();
   }, [stockData1?.symbol, stockData2?.symbol, activeTimeframe]);
 
-  // Helper to enrich stock quote with cached live prices and AI predictions
+  // Enrich stock data
   const getEnrichedStockData = (stockData) => {
     if (!stockData) return null;
     const ticker = stockData.symbol;
@@ -481,13 +481,13 @@ function App() {
     };
   };
 
-  // Resolve whichever stock quote is currently selected/active and enrich it
+  // Resolve active stock quote
   const rawActiveStockQuote = (activeStockQuoteData && activeStockQuoteData.symbol === activeSymbol)
     ? activeStockQuoteData
     : (stockData2 && activeSymbol === stockData2.symbol) ? stockData2 : stockData1;
   const activeStockQuote = getEnrichedStockData(rawActiveStockQuote);
 
-  // Merge price dynamically into livePrices if available
+  // Merge price into livePrices
   const activePriceMap = activeStockQuote ? { ...livePrices, [activeStockQuote.symbol]: activeStockQuote.currentPrice } : livePrices;
 
   const metrics = calculatePortfolioMetrics(holdings, activePriceMap);
@@ -496,13 +496,13 @@ function App() {
   const isNetWorthUp = netWorthProfitPercent >= 0;
   const isTrendUp = activeStockQuote ? activeStockQuote.change >= 0 : true;
 
-  // Handle stock trading: buy and sell
+  // Execute trade
   const handleExecuteTrade = async (action, ticker, shares, price) => {
     const symbol = ticker.toUpperCase();
     const qty = Number(shares);
     const cost = qty * price;
 
-    // Strictly enforce sign-in before executing any financial transaction activity
+    // Enforce sign-in
     if (!authToken) {
       alert("Please sign in or create an account to execute financial transactions.");
       setIsAuthModalOpen(true);
@@ -531,7 +531,7 @@ function App() {
     return false;
   };
 
-  // Handle stock comparison
+  // Compare stocks
   const handleCompare = (e) => {
     e.preventDefault();
     fetchComparisonData();
@@ -540,7 +540,7 @@ function App() {
     }
   };
 
-  // Handle global top header search bar submit across all tabs
+  // Header search
   const handleHeaderSearch = (e) => {
     e.preventDefault();
     if (!headerSearchQuery.trim()) return;
@@ -549,18 +549,17 @@ function App() {
     setHeaderSearchQuery('');
   };
 
-  // Get current date string for sidebar
+  // Get date string
   const currentDateStr = new Date().toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric'
   });
-
-  return (
+return (
     <div className={`app-layout ${isCollapsed ? 'collapsed' : ''}`}>
-      {/* --- SIDEBAR --- */}
+      {/* Sidebar */}
       <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-        {/* Fixed Top Segment */}
+        {/* Top section */}
         <div className="sidebar-top">
           <div
             className="logo-container"
@@ -572,7 +571,7 @@ function App() {
             {!isCollapsed && <span>Wealth Smith</span>}
           </div>
 
-          {/* Sidebar Portfolio Widget - Hidden when collapsed */}
+          {/* Portfolio card */}
           {!isCollapsed && (
             <div className="sidebar-portfolio-card">
               <div className="sidebar-portfolio-header">
@@ -590,7 +589,7 @@ function App() {
           )}
         </div>
 
-        {/* Scrollable Middle Segment */}
+        {/* Scrollable menu */}
         <nav className="sidebar-menu">
           <a
             className={`sidebar-menu-item ${activeTab === 'market' ? 'active' : ''}`}
@@ -631,7 +630,7 @@ function App() {
 
         </nav>
 
-        {/* Fixed Bottom Segment */}
+        {/* Bottom section */}
         <div className="sidebar-footer">
           <a className="sidebar-menu-item" style={{ cursor: 'pointer' }} onClick={() => setIsInboxOpen(true)}>
             <span className="flex-align-center" style={{ width: '100%', justifyContent: isCollapsed ? 'center' : 'space-between' }}>
@@ -666,7 +665,7 @@ function App() {
             </span>
           </div>
 
-          {/* Creator Watermark Badge */}
+          {/* Watermark */}
           {!isCollapsed ? (
             <div style={{
               marginTop: '12px',
@@ -745,9 +744,9 @@ function App() {
         </div>
       </aside>
 
-      {/* --- MAIN CONTENT AREA --- */}
+      {/* Main content */}
       <main className="main-content">
-        {/* Top Header */}
+        {/* Header */}
         <header className="dashboard-header">
           <form onSubmit={handleHeaderSearch} className="header-search">
             <span className="header-search-icon" style={{ zIndex: 1 }}><SearchIcon /></span>
@@ -800,7 +799,7 @@ function App() {
           }}
         />
 
-        {/* Dynamic page contents based on activeTab */}
+        {/* Tab content */}
         {activeTab === 'market' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <Portfolio
@@ -819,7 +818,7 @@ function App() {
 
         {activeTab === 'compare' && (
           <>
-            {/* Search / Compare Stocks Panel */}
+            {/* Compare Panel */}
             <section className="compare-container">
               <h2 className="section-title">Search Stocks to Compare</h2>
               <form onSubmit={handleCompare} className="compare-inputs-row">
@@ -855,14 +854,14 @@ function App() {
               </form>
             </section>
 
-            {/* Overview Header */}
+            {/* Header */}
             <h2 className="section-subtitle">Overview Comparison</h2>
 
-            {/* Status / Error display */}
+            {/* Status */}
             {loading && <p style={{ color: 'var(--text-muted)' }}>Fetching live market data...</p>}
             {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
 
-            {/* Stock Overview Cards Grid */}
+            {/* Cards */}
             <div className="overview-grid">
               {stockData1 && (
                 <StockCard
@@ -882,7 +881,7 @@ function App() {
               )}
             </div>
 
-            {/* Side-by-Side Comparative Charts */}
+            {/* Charts */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px' }}>
               <section className="chart-card" style={{ gridColumn: 'unset' }}>
                 <div className="chart-card-header">
@@ -910,7 +909,7 @@ function App() {
 
         {activeTab === 'prediction' && (
           <>
-            {/* Active Symbol Display & Status */}
+            {/* Symbol & Status */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 className="section-subtitle" style={{ marginTop: 0 }}>
                 AI LSTM Forecast: <span style={{ color: 'var(--text-dark)', backgroundColor: 'var(--accent-lime)', padding: '6px 16px', borderRadius: '16px', fontFamily: 'monospace' }}>{activeSymbol}</span>
@@ -930,16 +929,16 @@ function App() {
               </div>
             </div>
 
-            {/* Status / Error display */}
+            {/* Status */}
             {wsStatus === 'training' && (
               <div style={{ padding: '16px 24px', borderRadius: '24px', backgroundColor: '#fffbeb', border: '2px solid #fef3c7', color: '#b45309', fontWeight: 'bold', marginBottom: '24px' }}>
                 {trainingMessage || `Training AI predictor model for ${activeSymbol} in the background. Please wait ~10 seconds...`}
               </div>
             )}
 
-            {/* Layout Grid: Chart left, Predicted StockCard right */}
+            {/* Layout */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '30px', alignItems: 'start' }}>
-              {/* D3 Area Line Chart */}
+              {/* Chart */}
               <section className="chart-card">
                 <div className="chart-card-header">
                   <div className="chart-info">
@@ -954,7 +953,7 @@ function App() {
                     )}
                   </div>
 
-                  {/* Timeframe Filter Tabs */}
+                  {/* Timeframes */}
                   <div className="time-tabs">
                     {['1 Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', '2 Years'].map((tab) => (
                       <button
@@ -973,7 +972,7 @@ function App() {
                 )}
               </section>
 
-              {/* StockCard showing live quote and AI prediction */}
+              {/* Stock Card */}
               {activeStockQuote && (
                 <StockCard
                   data={activeStockQuote}
@@ -983,7 +982,7 @@ function App() {
               )}
             </div>
 
-            {/* Trading Simulator */}
+            {/* Portfolio Simulator */}
             <Portfolio
               holdings={holdings}
               setHoldings={setHoldings}
@@ -998,7 +997,7 @@ function App() {
           </>
         )}
 
-        {/* --- TAB 4: SENTIMENT TRACKER --- */}
+        {/* Sentiment Tab */}
         {activeTab === 'sentiment' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', width: '100%', marginTop: '10px' }}>
             <SentimentGauge data={activeStockQuote?.news_sentiment} symbol={activeSymbol} />
@@ -1008,7 +1007,7 @@ function App() {
 
       </main>
 
-      {/* --- INBOX (TRADE AUDIT LOGS) MODAL --- */}
+      {/* Trade logs modal */}
       {isInboxOpen && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,

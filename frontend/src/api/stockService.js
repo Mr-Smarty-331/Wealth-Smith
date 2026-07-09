@@ -14,7 +14,7 @@ export const getStockQuote = async (symbol) => {
             }
         }
         
-        // Fetch CORS-free real-time stock quote from backend microservice
+        // Fallback to backend API
         const backendRes = await axios.get(`${API_BASE_URL}/api/quote`, {
             params: { symbol: cleanSymbol }
         });
@@ -62,7 +62,7 @@ export const getHistoricalData = async (symbol, timeframe = '6 Months') => {
             }
         }
 
-        // Fetch CORS-free historical data from backend microservice
+        // Fallback to backend API
         const res = await axios.get(`${API_BASE_URL}/api/history`, {
             params: { symbol: cleanSymbol, timeframe }
         });

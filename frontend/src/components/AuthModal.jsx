@@ -19,7 +19,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
         setError('');
         setInfoMessage('');
 
-        // Frontend password validation before hitting the server
+        // Check password length
         if (!isLogin && step === 'credentials' && password.length < 6) {
             setError('Password must be at least 6 characters long.');
             return;
@@ -27,14 +27,14 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
 
         setLoading(true);
 
-        // Ensure backend IP is resolved before firing auth requests
+        // Wait for backend host ready
         await hostReady;
 
-        const axiosConfig = { timeout: 15000 }; // 15-second timeout
+        const axiosConfig = { timeout: 15000 }; // 15s timeout
 
         try {
             if (step === 'otp') {
-                // Verify 6-digit OTP to activate secure session
+                // Verify OTP
                 const res = await axios.post(`${API_BASE_URL}/api/auth/verify-otp`, {
                     email,
                     otp_code: otpCode
@@ -46,7 +46,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
                     setError('Verification succeeded but received an incomplete response. Please try signing in.');
                 }
             } else if (isLogin) {
-                // Sign in existing user to create secure active session
+                // Sign in user
                 const params = new URLSearchParams();
                 params.append('username', email);
                 params.append('password', password);
@@ -62,7 +62,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
                     setError('Sign-in succeeded but received an incomplete response. Please try again.');
                 }
             } else {
-                // Register new user database entry & send verification OTP
+                // Register user
                 const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
                     email,
                     password
@@ -142,7 +142,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
                     &times;
                 </button>
 
-                {/* Mode Switcher Tabs */}
+                {/* Tabs */}
                 {step === 'credentials' && (
                     <div style={{
                         display: 'flex',

@@ -5,7 +5,7 @@ from sqlalchemy.orm import declarative_base
 
 logger = logging.getLogger("ws-backend")
 
-# Read from AWS environment variable if available, fallback to local SQLite
+# Use AWS DB url if set, otherwise fallback to local SQLite
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///wealth_smith_local.db")
 engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 

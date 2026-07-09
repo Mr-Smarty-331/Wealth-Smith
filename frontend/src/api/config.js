@@ -1,5 +1,4 @@
-// Centralized Enterprise API & WebSocket Configuration for Wealth Smith
-// Utilizes AWS Application Load Balancer (ALB) for permanent, zero-hardcoded-IP connectivity.
+// API and WebSocket config
 
 const PERMANENT_ALB_DNS = "wealth-smith-alb-1384513505.us-east-1.elb.amazonaws.com";
 

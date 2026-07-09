@@ -10,18 +10,16 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 
-# Define constants
+# Constants
 START_DATE = "2020-01-01"
 END_DATE = datetime.now().strftime("%Y-%m-%d")
 SEQUENCE_LENGTH = 60
 
-# Directory where models are stored
+# Model storage directory
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 
 def load_historical_data(ticker: str, start: str, end: str) -> pd.DataFrame:
-    """
-    Downloads historical close price data from yfinance.
-    """
+    """Download historical close prices."""
     print(f"Downloading historical data for {ticker} from {start} to {end}...")
     df = yf.download(ticker, start=start, end=end)
     if df.empty:
@@ -29,28 +27,23 @@ def load_historical_data(ticker: str, start: str, end: str) -> pd.DataFrame:
     return df[["Close"]]
 
 def prepare_classification_sequences(scaled_prices: np.ndarray, raw_prices: np.ndarray, seq_length: int):
-    """
-    Creates sliding-window sequence inputs from scaled prices and generates binary directional targets:
-    1 if Close_{t+1} > Close_t, else 0.
-    """
+    """Generate sequences and binary targets (1 if close increases, 0 otherwise)."""
     X, y = [], []
     for i in range(len(scaled_prices) - seq_length):
         X.append(scaled_prices[i : i + seq_length])
         
-        # Determine directional target based on unscaled actual prices
+        # Binary target from raw prices
         close_t = raw_prices[i + seq_length - 1]
         close_next = raw_prices[i + seq_length]
         
-        # 1 for UP, 0 for DOWN/STAGNANT
+        # 1=UP, 0=DOWN
         target = 1 if close_next > close_t else 0
         y.append(target)
         
     return np.array(X), np.array(y).reshape(-1, 1)
 
 def evaluate_classifier(model, X_test, y_test) -> dict:
-    """
-    Evaluates the binary classification model on unseen test split data and calculates accuracy.
-    """
+    """Evaluate model accuracy on test data."""
     probabilities = model.predict(X_test, verbose=0)
     predictions = (probabilities >= 0.50).astype(int)
     
@@ -62,13 +55,11 @@ def evaluate_classifier(model, X_test, y_test) -> dict:
     }
 
 def train_model_for_ticker(ticker: str) -> bool:
-    """
-    Trains a binary classification LSTM model for a specific ticker to predict direction (UP/DOWN).
-    """
+    """Train LSTM binary classifier for a ticker."""
     ticker = ticker.upper().strip()
     os.makedirs(MODELS_DIR, exist_ok=True)
     
-    # Paths for stock-specific and general fallback models
+    # File paths
     model_path = os.path.join(MODELS_DIR, f"{ticker}_classifier.h5")
     scaler_path = os.path.join(MODELS_DIR, f"{ticker}_scaler.pkl")
     metrics_path = os.path.join(MODELS_DIR, f"{ticker}_metrics.json")
@@ -77,11 +68,11 @@ def train_model_for_ticker(ticker: str) -> bool:
     default_scaler_path = os.path.join(MODELS_DIR, "scaler.pkl")
     
     try:
-        # 1. Download data dynamically up to today
+        # 1. Download data
         df = load_historical_data(ticker, START_DATE, END_DATE)
-        raw_prices = df.values.flatten()  # 1D array of close prices
+        raw_prices = df.values.flatten()  # 1D close prices
 
-        # 2. Chronological split (80% training, 20% validation/testing)
+        # 2. Train/test split
         split_idx = int(len(raw_prices) * 0.8)
         train_raw = raw_prices[:split_idx]
         test_raw = raw_prices[split_idx:]
@@ -89,16 +80,16 @@ def train_model_for_ticker(ticker: str) -> bool:
         if len(train_raw) <= SEQUENCE_LENGTH or len(test_raw) <= SEQUENCE_LENGTH:
             raise ValueError(f"Insufficient data to train and validate {ticker}. Total samples: {len(raw_prices)}")
 
-        # 3. Normalize price data with MinMaxScaler
+        # 3. Normalize data
         scaler = MinMaxScaler(feature_range=(0, 1))
         train_scaled = scaler.fit_transform(train_raw.reshape(-1, 1)).flatten()
         test_scaled = scaler.transform(test_raw.reshape(-1, 1)).flatten()
 
-        # 4. Create sequences with binary target labels
+        # 4. Create sequences
         X_train, y_train = prepare_classification_sequences(train_scaled, train_raw, SEQUENCE_LENGTH)
         X_test, y_test = prepare_classification_sequences(test_scaled, test_raw, SEQUENCE_LENGTH)
         
-        # Reshape X for LSTM input shape: (samples, time_steps, features)
+        # Reshape for LSTM
         X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
         X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
         
@@ -106,26 +97,26 @@ def train_model_for_ticker(ticker: str) -> bool:
         print(f"  Train: X shape: {X_train.shape}, y shape: {y_train.shape} (UP ratio: {np.mean(y_train):.2%})")
         print(f"  Test:  X shape: {X_test.shape}, y shape: {y_test.shape} (UP ratio: {np.mean(y_test):.2%})")
 
-        # 5. Build Sequential LSTM Binary Classifier Model
+        # 5. Build LSTM model
         model = Sequential([
             LSTM(units=50, input_shape=(SEQUENCE_LENGTH, 1)),
             Dropout(0.2),
             Dense(units=1, activation='sigmoid')
         ])
 
-        # 6. Compile Model using binary crossentropy loss
+        # 6. Compile model
         model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
 
-        # 7. Train Model
+        # 7. Train model
         print(f"Training binary classification LSTM model for {ticker}...")
         model.fit(X_train, y_train, batch_size=32, epochs=5, verbose=1)
 
-        # 8. Evaluate validation accuracy
+        # 8. Evaluate model
         print(f"Evaluating validation metrics on test split...")
         metrics = evaluate_classifier(model, X_test, y_test)
         print(f"Validation Accuracy for {ticker}: {metrics['accuracy_pct']:.2f}%")
 
-        # 9. Export Model & Scaler files
+        # 9. Export artifacts
         print(f"Saving classification model to {model_path} and {default_model_path}...")
         model.save(model_path)
         model.save(default_model_path)
@@ -138,7 +129,7 @@ def train_model_for_ticker(ticker: str) -> bool:
         with open(metrics_path, "w") as f:
             json.dump(metrics, f, indent=4)
 
-        # Sync trained artifacts to AWS S3 Cloud Storage
+        # Sync to AWS S3
         try:
             import asyncio
             from model_storage_service import save_model_to_aws

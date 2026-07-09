@@ -5,7 +5,7 @@ const LineChart = ({ data, symbol }) => {
     const svgRef = useRef();
 
     useEffect(() => {
-        // 1. Filter and sanitize data to prevent NaN scale crashes
+        // 1. Clean data
         const cleanData = data.filter(d => 
             d.date instanceof Date && 
             !isNaN(d.date.getTime()) && 
@@ -14,17 +14,17 @@ const LineChart = ({ data, symbol }) => {
         );
         if (cleanData.length < 2) return;
 
-        // 2. Clear the canvas
+        // 2. Clear SVG
         d3.select(svgRef.current).selectAll("*").remove();
 
-        // 3. Setup responsive dimensions
+        // 3. Setup dimensions
         const width = 800;
         const height = 320;
         const margin = { top: 10, right: 20, bottom: 30, left: 55 };
         const innerWidth = width - margin.left - margin.right;
         const innerHeight = height - margin.top - margin.bottom;
 
-        // Connect D3 to SVG element
+        // Bind SVG
         const svg = d3.select(svgRef.current)
             .attr("viewBox", `0 0 ${width} ${height}`)
             .style("width", "100%")
@@ -32,7 +32,7 @@ const LineChart = ({ data, symbol }) => {
             .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        // 4. Create scales
+        // 4. Scales
         const xScale = d3.scaleTime()
             .domain(d3.extent(cleanData, d => d.date))
             .range([0, innerWidth]);
@@ -40,10 +40,10 @@ const LineChart = ({ data, symbol }) => {
         const yMin = d3.min(cleanData, d => d.price);
         const yMax = d3.max(cleanData, d => d.price);
         const yScale = d3.scaleLinear()
-            .domain([yMin * 0.98, yMax * 1.02]) // 2% buffer for a cleaner look
+            .domain([yMin * 0.98, yMax * 1.02]) // Buffer margin
             .range([innerHeight, 0]);
 
-        // 4. Draw horizontal dashed grid lines
+        // 5. Grid lines
         const yGrid = d3.axisLeft(yScale)
             .ticks(5)
             .tickSize(-innerWidth)
@@ -56,7 +56,7 @@ const LineChart = ({ data, symbol }) => {
             .style("stroke-dasharray", "4,4")
             .call(g => g.select(".domain").remove());
 
-        // 5. Draw axes (without the outer border line, just labels)
+        // 6. Draw axes
         const xAxis = d3.axisBottom(xScale)
             .ticks(6)
             .tickSize(0)
@@ -83,7 +83,7 @@ const LineChart = ({ data, symbol }) => {
             .style("font-family", "Outfit, sans-serif")
             .call(g => g.select(".domain").remove());
 
-        // 6. Define soft gradient for area under the line
+        // 7. Area gradient
         const gradientId = `chart-area-gradient-${symbol.replace(/[^a-zA-Z0-9]/g, '-')}`;
         const defs = svg.append("defs");
         const gradient = defs.append("linearGradient")
@@ -103,7 +103,7 @@ const LineChart = ({ data, symbol }) => {
             .attr("stop-color", "#4f46e5")
             .attr("stop-opacity", 0.0);
 
-        // 7. Area generator (filled region)
+        // 8. Area path
         const areaGenerator = d3.area()
             .x(d => xScale(d.date))
             .y0(innerHeight)
@@ -115,7 +115,7 @@ const LineChart = ({ data, symbol }) => {
             .attr("fill", `url(#${gradientId})`)
             .attr("d", areaGenerator);
 
-        // 8. Line generator (stroke line)
+        // 9. Line path
         const lineGenerator = d3.line()
             .x(d => xScale(d.date))
             .y(d => yScale(d.price))

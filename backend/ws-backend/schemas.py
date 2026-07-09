@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
 
-# Auth Schemas
+# Auth
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
@@ -36,7 +36,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-# Portfolio & Trade Schemas
+# Trading
 class HoldingResponse(BaseModel):
     ticker: str
     shares: float
@@ -46,7 +46,7 @@ class HoldingResponse(BaseModel):
         from_attributes = True
 
 class TradeExecute(BaseModel):
-    action: str  # "BUY" or "SELL"
+    action: str  # BUY or SELL
     symbol: str
     shares: float
     price: float

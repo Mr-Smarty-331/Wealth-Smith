@@ -9,7 +9,7 @@ S3_BUCKET_NAME = os.getenv("AWS_S3_MODEL_BUCKET", "wealth-smith-ml-models")
 MODEL_EXPIRATION_DAYS = 5
 
 def get_s3_client():
-    """Returns initialized boto3 S3 client if AWS credentials exist."""
+    """Get boto3 S3 client if AWS keys exist."""
     try:
         import boto3
         if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
@@ -19,10 +19,7 @@ def get_s3_client():
     return None
 
 async def save_model_to_aws(ticker: str, model_file_path: str, scaler_file_path: str) -> bool:
-    """
-    Saves trained .h5 model and .pkl scaler to AWS S3 storage upon user prompt.
-    Includes fallback to local disk if running offline.
-    """
+    """Save trained model & scaler to AWS S3 or fallback to local disk."""
     s3 = get_s3_client()
     ticker = ticker.toUpperCase() if hasattr(ticker, 'toUpperCase') else ticker.upper()
 
@@ -43,9 +40,7 @@ async def save_model_to_aws(ticker: str, model_file_path: str, scaler_file_path:
     return True
 
 async def is_model_valid_and_fresh(ticker: str) -> bool:
-    """
-    Checks if a trained model exists in storage AND is fresh (less than 5 days old).
-    """
+    """Check if model exists and is < 5 days old."""
     s3 = get_s3_client()
     ticker = ticker.upper()
 
@@ -55,7 +50,7 @@ async def is_model_valid_and_fresh(ticker: str) -> bool:
             response = s3.head_object(Bucket=S3_BUCKET_NAME, Key=model_s3_key)
             last_modified = response['LastModified']
             
-            # Check 5-day expiration rule
+            # Check 5-day expiry
             cutoff = datetime.now(last_modified.tzinfo) - timedelta(days=MODEL_EXPIRATION_DAYS)
             if last_modified < cutoff:
                 logger.info(f"⏰ Model for {ticker} in AWS S3 is older than 5 days. Marking for retraining.")
@@ -64,7 +59,7 @@ async def is_model_valid_and_fresh(ticker: str) -> bool:
         except Exception:
             return False
 
-    # Local fallback check
+    # Local fallback
     local_model_path = os.path.join("models", f"{ticker}_model.h5")
     if os.path.exists(local_model_path):
         mtime = datetime.fromtimestamp(os.path.getmtime(local_model_path))
@@ -75,10 +70,7 @@ async def is_model_valid_and_fresh(ticker: str) -> bool:
     return False
 
 async def cleanup_outdated_aws_models():
-    """
-    Automated Garbage Collector: Scans AWS S3 storage and purges model artifacts older than 5 days.
-    Runs periodically in background.
-    """
+    """Delete S3 models older than 5 days."""
     logger.info("🧹 Running automated 5-day ML Model Garbage Collection scanner...")
     s3 = get_s3_client()
 
@@ -95,7 +87,7 @@ async def cleanup_outdated_aws_models():
                     for obj in page["Contents"]:
                         key = obj["Key"]
                         last_mod = obj["LastModified"]
-                        # Compare against 5-day expiration threshold
+                        # Check 5-day expiry
                         if last_mod < datetime.now(last_mod.tzinfo) - timedelta(days=MODEL_EXPIRATION_DAYS):
                             logger.info(f"🗑️ Purging outdated ML artifact from AWS S3 (>5 days old): {key}")
                             s3.delete_object(Bucket=S3_BUCKET_NAME, Key=key)
@@ -105,7 +97,7 @@ async def cleanup_outdated_aws_models():
         except Exception as e:
             logger.error(f"Error during AWS S3 model cleanup: {e}")
 
-    # Local disk cleanup fallback
+    # Local fallback
     models_dir = "models"
     if os.path.exists(models_dir):
         deleted_count = 0

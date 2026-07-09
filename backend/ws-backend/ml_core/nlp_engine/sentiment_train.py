@@ -10,19 +10,17 @@ try:
 except ImportError:
     from text_processor import clean_text, vectorize_texts
 
-# Directory paths
+# Paths
 NLP_ENGINE_DIR = os.path.dirname(__file__)
 MODEL_PATH = os.path.join(NLP_ENGINE_DIR, "sentiment_model.h5")
 VECTORIZER_PATH = os.path.join(NLP_ENGINE_DIR, "tfidf_vectorizer.pkl")
 
-# Label encoding mapping
+# Label mapping
 LABEL_MAP = {"Bearish": 0, "Neutral": 1, "Bullish": 2}
 REVERSE_LABEL_MAP = {0: "Bearish", 1: "Neutral", 2: "Bullish"}
 
 def generate_financial_sentiment_dataset() -> pd.DataFrame:
-    """
-    Generates a robust financial sentiment dataset covering Bullish (2), Neutral (1), and Bearish (0) phrases.
-    """
+    """Generate financial sentiment training data."""
     bullish_phrases = [
         "Apple reports record quarterly revenue beating Wall Street estimates driven by massive iPhone demand",
         "Microsoft cloud earnings surge past expectations with strong AI enterprise growth and expanding margins",
@@ -85,26 +83,23 @@ def generate_financial_sentiment_dataset() -> pd.DataFrame:
     for phrase in bearish_phrases:
         data.append({"text": phrase, "label_str": "Bearish", "label": 0})
         
-    # Multiply dataset samples to build robust TF-IDF feature distributions
+    # Duplicate data to improve TF-IDF
     df = pd.DataFrame(data)
     df_expanded = pd.concat([df] * 5, ignore_index=True)
     return df_expanded
 
 
 def train_sentiment_model(max_features: int = 5000) -> bool:
-    """
-    Loads training data, cleans text, builds TF-IDF vectorizer matrix,
-    trains a Keras Deep Learning NLP Classifier, and exports sentiment_model.h5 and tfidf_vectorizer.pkl.
-    """
+    """Train sentiment model and save model & vectorizer."""
     print("Initializing Financial Sentiment Dataset...")
     df = generate_financial_sentiment_dataset()
     print(f"Total dataset samples: {len(df)}")
     
-    # 1. Preprocess and clean text using Phase 01 module
+    # 1. Preprocess & clean
     print("Preprocessing and cleaning unstructured text...")
     df["clean_text"] = df["text"].apply(clean_text)
     
-    # 2. Vectorize texts using TF-IDF
+    # 2. TF-IDF vectorization
     print(f"Vectorizing texts with TfidfVectorizer (max_features={max_features})...")
     tfidf_matrix, vectorizer = vectorize_texts(df["clean_text"].tolist(), max_features=max_features)
     
@@ -113,28 +108,28 @@ def train_sentiment_model(max_features: int = 5000) -> bool:
     
     print(f"X_train matrix shape: {X_train.shape}, y_train shape: {y_train.shape}")
     
-    # 3. Build Deep Learning Keras Neural Network (Multi-Layer Perceptron)
+    # 3. Build MLP model
     num_features = X_train.shape[1]
     model = Sequential([
         Dense(512, activation='relu', input_shape=(num_features,)),
         Dropout(0.3),
         Dense(256, activation='relu'),
         Dropout(0.2),
-        Dense(3, activation='softmax')  # 3 output nodes: Bearish (0), Neutral (1), Bullish (2)
+        Dense(3, activation='softmax')  # 3 classes: Bearish, Neutral, Bullish
     ])
     
-    # 4. Compile Model
+    # 4. Compile
     model.compile(
         optimizer='adam',
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
     
-    # 5. Train Model
+    # 5. Train
     print("Training Deep Learning Sentiment Model...")
     model.fit(X_train, y_train, epochs=12, batch_size=16, verbose=1, validation_split=0.15)
     
-    # 6. Export Model
+    # 6. Save
     print(f"Saving trained NLP sentiment model to {MODEL_PATH}...")
     model.save(MODEL_PATH)
     print("Sentiment Engine training complete!")

@@ -13,7 +13,7 @@ const Portfolio = ({
     activeSymbol,
     setActiveSymbol
 }) => {
-    const [action, setAction] = useState('BUY'); // 'BUY' or 'SELL'
+    const [action, setAction] = useState('BUY'); // BUY or SELL
     const [tradeTicker, setTradeTicker] = useState(activeSymbol || '');
     const [tradeShares, setTradeShares] = useState('');
     const [price, setPrice] = useState(0);
@@ -25,7 +25,7 @@ const Portfolio = ({
     const netWorthProfitPercent = Number(((netWorth - startingCash) / startingCash * 100).toFixed(2));
     const isProfit = netWorth >= startingCash;
 
-    // Sync input ticker and price when activeSymbol from chart updates
+    // Sync ticker and price when activeSymbol changes
     useEffect(() => {
         if (activeSymbol) {
             setTradeTicker(activeSymbol);
@@ -39,7 +39,7 @@ const Portfolio = ({
         }
     }, [activeSymbol]);
 
-    // Update price if livePrices map updates (e.g. from general polling)
+    // Update price when livePrices change
     useEffect(() => {
         if (tradeTicker) {
             const currentPrice = livePrices[tradeTicker.toUpperCase().trim()];
@@ -102,7 +102,7 @@ const Portfolio = ({
 
     const estimatedTotal = (Number(tradeShares) || 0) * price;
 
-    // Check how many shares of the current trade ticker are owned
+    // Get owned shares count for ticker
     const ownedHolding = holdings.find(h => h.ticker === tradeTicker.toUpperCase().trim());
     const ownedShares = ownedHolding ? ownedHolding.shares : 0;
 
@@ -119,7 +119,7 @@ const Portfolio = ({
                 </button>
             </div>
 
-            {/* --- METRICS SUMMARY --- */}
+            {/* Metrics */}
             <div className="portfolio-metrics-row">
                 <div className="portfolio-metric-box">
                     <span className="stock-metric-label">Uninvested Cash</span>
@@ -143,7 +143,7 @@ const Portfolio = ({
                 </div>
             </div>
 
-            {/* --- TRADE STOCK PANEL --- */}
+            {/* Trade Panel */}
             <div className="neo-card" style={{ padding: '24px', marginBottom: '30px', border: '1px solid var(--border-light)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Simulated Trade Panel</h3>
@@ -220,7 +220,7 @@ const Portfolio = ({
                         </div>
                     </div>
 
-                    {/* Trade Status Context */}
+                    {/* Trade Info */}
                     <div className="trade-details-box" style={{ margin: 0 }}>
                         <div>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -278,7 +278,7 @@ const Portfolio = ({
                 </form>
             </div>
 
-            {/* --- HOLDINGS TABLE --- */}
+            {/* Holdings */}
             <div className="custom-table-container">
                 <table className="custom-table">
                     <thead>

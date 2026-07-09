@@ -5,10 +5,10 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
 
     const isPositive = data.change >= 0;
 
-    // Get first letter of ticker to show as icon placeholder
+    // Ticker avatar letter
     const firstLetter = data.symbol ? data.symbol.charAt(0) : '';
 
-    // Resolve display company name
+    // Get display name
     const displayName = companyName || data.companyName || 'Live Market Data';
 
     return (
@@ -92,7 +92,7 @@ const StockCard = ({ data, onClick, isActive, companyName }) => {
                         </span>
                     </div>
 
-                    {/* Multimodal Dual-Inference Breakdown Pills */}
+                    {/* Dual-inference pills */}
                     {data.ts_prediction && (
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-light)' }}>
                             <div style={{ flex: 1, backgroundColor: 'var(--bg-app)', border: '1px solid var(--border-light)', padding: '6px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-dark)', textAlign: 'center' }}>

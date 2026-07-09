@@ -14,7 +14,7 @@ import schemas
 
 SECRET_KEY = os.getenv("JWT_SECRET", "wealth_smith_super_secret_jwt_key_2026")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 Days Token Expiry
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days expiry
 
 import bcrypt
 

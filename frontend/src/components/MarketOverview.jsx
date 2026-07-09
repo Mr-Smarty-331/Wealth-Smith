@@ -64,7 +64,7 @@ export const MarketOverview = ({ activeSymbol, setActiveSymbol, livePrices, onEx
     }, []);
 
     const handleQuickTrade = (e, action, symbol, price) => {
-        e.stopPropagation(); // Avoid triggering card click selection
+        e.stopPropagation(); // Stop click bubble
         const qty = prompt(`How many shares of ${symbol} would you like to ${action}?`, "10");
         if (qty === null) return;
         const shares = Number(qty);
@@ -93,7 +93,7 @@ export const MarketOverview = ({ activeSymbol, setActiveSymbol, livePrices, onEx
                         const companyName = fetchedData.name || item.defaultName;
                         const prevClose = fetchedData.previousClose || 100;
                         
-                        // Dynamically merge live price updates from WebSocket stream if present
+                        // Merge live socket prices
                         const currentPrice = livePrices[item.symbol] || fetchedData.currentPrice || prevClose;
                         const change = currentPrice - prevClose;
                         const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;

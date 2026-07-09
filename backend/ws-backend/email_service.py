@@ -6,14 +6,11 @@ from datetime import datetime, timedelta
 logger = logging.getLogger("ws-backend")
 
 def generate_otp() -> str:
-    """Generates a secure 6-digit numeric OTP code."""
+    """Generate a 6-digit OTP."""
     return f"{random.randint(100000, 999999)}"
 
 async def send_otp_email(recipient_email: str, otp_code: str) -> bool:
-    """
-    Sends an automated verification email with the 6-digit OTP code.
-    Configured for AWS SES / SMTP credentials, with console fallback for local dev.
-    """
+    """Send verification OTP. Fallback to console in dev."""
     smtp_server = os.getenv("SMTP_SERVER")
     smtp_port = os.getenv("SMTP_PORT", "587")
     smtp_user = os.getenv("SMTP_USER")
@@ -59,7 +56,7 @@ async def send_otp_email(recipient_email: str, otp_code: str) -> bool:
         except Exception as e:
             logger.error(f"Failed to send email via SMTP/AWS SES: {e}")
 
-    # Fallback log output for development verification
+    # Local fallback
     logger.info(f"\n==================================================")
     logger.info(f"📧 EMAIL OTP DISPATCH (LOCAL DEV FALLBACK)")
     logger.info(f"Recipient: {recipient_email}")

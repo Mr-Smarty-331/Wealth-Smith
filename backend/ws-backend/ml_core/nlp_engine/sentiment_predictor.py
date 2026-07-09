@@ -8,7 +8,7 @@ try:
 except ImportError:
     from text_processor import clean_text
 
-# Set up logging for sentiment analysis
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nlp-sentiment-predictor")
 
@@ -16,14 +16,11 @@ NLP_ENGINE_DIR = os.path.dirname(__file__)
 MODEL_PATH = os.path.join(NLP_ENGINE_DIR, "sentiment_model.h5")
 VECTORIZER_PATH = os.path.join(NLP_ENGINE_DIR, "tfidf_vectorizer.pkl")
 
-# Sentiment Label Mappings
+# Sentiment labels
 LABEL_NAMES = {0: "Bearish", 1: "Neutral", 2: "Bullish"}
 
 class SentimentAnalyzer:
-    """
-    Inference service for Deep Learning NLP Sentiment Analysis.
-    Loads sentiment_model.h5 and tfidf_vectorizer.pkl into memory once upon initialization.
-    """
+    """Inference for sentiment model. Loads model and tfidf vectorizer on init."""
     def __init__(self):
         self.model = None
         self.vectorizer = None
@@ -31,9 +28,7 @@ class SentimentAnalyzer:
         self._load_resources()
 
     def _load_resources(self):
-        """
-        Loads trained model and vectorizer from disk into memory.
-        """
+        """Load model and vectorizer from disk."""
         if not os.path.exists(MODEL_PATH) or not os.path.exists(VECTORIZER_PATH):
             logger.warning(f"Sentiment model or vectorizer file missing in {NLP_ENGINE_DIR}. Auto-training may be required.")
             return
@@ -52,15 +47,9 @@ class SentimentAnalyzer:
             self.is_ready = False
 
     def analyze_headlines(self, headlines_list: list[str]) -> dict:
-        """
-        Analyzes a list of unstructured financial headlines/summaries, cleans each text item,
-        transforms them via TF-IDF vectorizer, runs Keras neural network inference, and aggregates predictions.
-
-        :param headlines_list: List of raw news headline/summary strings
-        :return: JSON-friendly sentiment dictionary containing ratios, overall sentiment, and score
-        """
+        """Analyze headlines list and return sentiment metrics."""
         if not self.is_ready:
-            # Attempt reloading if not ready
+            # Reload if not ready
             self._load_resources()
             if not self.is_ready:
                 return {
@@ -84,7 +73,7 @@ class SentimentAnalyzer:
                 "message": "No headlines provided."
             }
 
-        # 1. Clean all input headlines
+        # 1. Clean input
         cleaned_texts = [clean_text(text) for text in headlines_list]
         cleaned_texts = [t for t in cleaned_texts if len(t.strip()) > 0]
         
@@ -99,10 +88,10 @@ class SentimentAnalyzer:
             }
 
         try:
-            # 2. Vectorize cleaned texts using loaded vectorizer
+            # 2. Vectorize
             tfidf_matrix = self.vectorizer.transform(cleaned_texts).toarray()
             
-            # 3. Run neural network inference (Softmax output probabilities for 3 classes: [Bearish, Neutral, Bullish])
+            # 3. Predict classes
             predictions_probs = self.model.predict(tfidf_matrix, verbose=0)
             predicted_classes = np.argmax(predictions_probs, axis=1)
             
@@ -115,10 +104,10 @@ class SentimentAnalyzer:
             bearish_ratio = round(bearish_count / total_count, 4)
             neutral_ratio = round(neutral_count / total_count, 4)
             
-            # Net sentiment score in range [-1.0, +1.0]
+            # Net sentiment score (-1 to 1)
             sentiment_score = round(bullish_ratio - bearish_ratio, 4)
             
-            # Determine overall sentiment label
+            # Overall label
             if sentiment_score >= 0.15:
                 overall = "Bullish"
             elif sentiment_score <= -0.15:
@@ -148,7 +137,7 @@ class SentimentAnalyzer:
             }
 
 if __name__ == "__main__":
-    # Standalone test run
+    # Test run
     analyzer = SentimentAnalyzer()
     sample_news = [
         "Apple reports massive profits in tech sector expansion with strong iPhone sales",

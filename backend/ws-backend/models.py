@@ -19,7 +19,7 @@ class User(Base):
     otp_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    # Relationships
+    # Relations
     holdings = relationship("Holding", back_populates="owner", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="owner", cascade="all, delete-orphan")
 
@@ -33,7 +33,7 @@ class Holding(Base):
     avg_buy_price = Column(Float, nullable=False, default=0.0)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # Relationships
+    # Relations
     owner = relationship("User", back_populates="holdings")
 
     @property
@@ -45,11 +45,11 @@ class Transaction(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    action = Column(String(10), nullable=False)  # "BUY" or "SELL"
+    action = Column(String(10), nullable=False)  # BUY or SELL
     ticker = Column(String(20), nullable=False)
     shares = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    # Relationships
+    # Relations
     owner = relationship("User", back_populates="transactions")
